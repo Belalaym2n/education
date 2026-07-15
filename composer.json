@@ -1,0 +1,19 @@
+{
+    "name": "belalayman/education",
+    "description": "Backend API for Education System]",
+    "type": "project",
+  "autoload": {
+    "psr-4": {
+        "App\\": "App/"
+    }
+},
+    "authors": [
+        {
+            "name": "H  P",
+            "email": "belalscg@gmail.com"
+        }
+    ],
+    "require": {}
+}
+
+

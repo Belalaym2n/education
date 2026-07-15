@@ -1,0 +1,32 @@
+[2026-07-08 11:09:40] [ERROR] Failed to connect to database {"host":"localhost"}
+[2026-07-08 11:09:40] [INFO] User logged in {"user_id":5}
+[2026-07-08 11:11:07] [ERROR] Failed to connect to database {"host":"localhost"}
+[2026-07-08 11:11:07] [INFO] User logged in {"user_id":5}
+[2026-07-08 12:52:21] [ERROR] Unexpected error in login {"message":"SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM users WHERE email = ? WHERE Array' at line 1"}
+[2026-07-08 12:53:18] [ERROR] Unexpected error in login {"message":"SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM users WHERE email = ? WHERE Array' at line 1"}
+[2026-07-08 12:54:08] [ERROR] Unexpected error in login {"message":"SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM users WHERE email = ? WHERE Array' at line 1"}
+[2026-07-08 12:57:21] [WARNING] Failed login attempt {"email":"belassv3a.ayman@example.com"}
+[2026-07-08 12:58:36] [ERROR] Unexpected error in login {"message":"SQLSTATE[HY093]: Invalid parameter number: number of bound variables does not match number of tokens"}
+[2026-07-08 13:00:22] [INFO] User logged in successfully {"user_id":"17"}
+[2026-07-08 13:00:43] [INFO] User logged in successfully {"user_id":"17"}
+[2026-07-08 13:19:40] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:20:04] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:20:58] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:21:10] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:23:24] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:23:35] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:24:12] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:26:20] [WARNING] Failed login attempt {"email":"belassv3a.sayman@example.com"}
+[2026-07-08 13:26:33] [WARNING] Failed login attempt {"email":"belassv3dsfsdfa.sayman@example.com"}
+[2026-07-08 13:26:43] [WARNING] Failed login attempt {"email":"belass3ss.ayman@example.com"}
+[2026-07-08 13:26:50] [INFO] User logged in successfully {"user_id":"15"}
+[2026-07-08 13:26:54] [WARNING] Failed login attempt {"email":"belass3s.ayman@example.com"}
+[2026-07-08 13:27:01] [INFO] User logged in successfully {"user_id":"15"}
+[2026-07-08 14:03:54] [INFO] User logged in successfully {"user_id":"15"}
+[2026-07-08 14:04:00] [WARNING] Failed login attempt {"email":"belass3ss.ayman@example.com"}
+[2026-07-08 14:04:00] [ERROR] Invalid credentials {"file":"D:\\sdfsdf\\htdocs\\education\\App\\Resources\\LoginResource.php","line":45,"trace":"#0 D:\\sdfsdf\\htdocs\\education\\App\\controllers\\login.php(34): App\\Resources\\LoginResource->login(Array)\n#1 {main}"}
+[2026-07-08 14:04:20] [WARNING] Failed login attempt {"email":"belass3ss.ayman@example.com"}
+[2026-07-08 14:04:20] [ERROR] Invalid credentials {"file":"D:\\sdfsdf\\htdocs\\education\\App\\Resources\\LoginResource.php","line":45,"trace":"#0 D:\\sdfsdf\\htdocs\\education\\App\\controllers\\login.php(34): App\\Resources\\LoginResource->login(Array)\n#1 {main}"}
+[2026-07-08 14:09:47] [WARNING] Failed login attempt {"email":"belass3ss.ayman@example.com"}
+[2026-07-08 14:09:47] [ERROR] Invalid credentials {"file":"D:\\sdfsdf\\htdocs\\education\\App\\Resources\\LoginResource.php","line":45,"trace":"#0 D:\\sdfsdf\\htdocs\\education\\App\\controllers\\login.php(34): App\\Resources\\LoginResource->login(Array)\n#1 {main}"}
+[2026-07-08 15:24:14] [INFO] User logged in successfully {"user_id":"15"}
