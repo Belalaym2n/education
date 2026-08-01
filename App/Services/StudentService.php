@@ -44,7 +44,7 @@ class StudentService
         $this->db->beginTransaction();
 
         try {
-             $userId = $this->userRepo->create([
+            $userId = $this->userRepo->create([
                 'full_name' => $data['full_name'],
                 'email' => $data['email'],
                 'phone'
@@ -70,7 +70,8 @@ class StudentService
             throw $e;
         }
 
-        $user = $this->userService->getUser($userId);
+        $user = $this->studentRepo->find($userId);
+
         $token = $this->authService->generateToken(
             array_merge($user, ['id' => $userId])
         );
@@ -86,8 +87,8 @@ class StudentService
                 'role' => $user['role_name'], // student
                 'is_active' => (bool) $user['is_active'],
             ],
-            'student' => [ 
-  
+            'student' => [
+
                 'id' => (int) $studentId,
                 'stage' => [
                     'id' => (int) $user['stage_id'],
@@ -109,42 +110,96 @@ class StudentService
         return $student;
     }
 
-    public function listStudents(int $limit = 50, int $offset = 0): array
+    public function listStudents(array $filters, int $limit, int $offset, string $sort, string $order): array
     {
-        return $this->studentRepo->all($limit, $offset);
+        return $this->studentRepo->all($filters, $limit, $offset, $sort, $order);
     }
 
     public function updateStudent(int $id, array $data): array
     {
-        $this->getStudent($id); // يرمي NotFoundException لو مش موجود
+        $student = $this->getStudent($id);
 
-        $allowedFields = array_intersect_key($data, array_flip(['stage_id', 'phone', 'parent_phone']));
+        // ==========================
+        // Update students table
+        // ==========================
+        $studentData = array_intersect_key(
+            $data,
+            array_flip([
+                'stage_id',
+                'parent_phone',
+                'profile_image',
+                'enrollment_date',
+            ])
+        );
 
-        if (!empty($allowedFields)) {
-            $this->studentRepo->update($id, $allowedFields);
+        if (!empty($studentData)) {
+            $affected = $this->studentRepo->update(
+                (int) $student['student_id'],
+                $studentData
+            );
+
+            $this->logger->info('Students table updated', [
+                'student_id' => $student['student_id'],
+                'affected_rows' => $affected,
+                'data' => $studentData,
+            ]);
         }
 
-        $this->logger->info("Student updated", ['id' => $id]);
+        // ==========================
+        // Update users table
+        // ==========================
+        $userData = array_intersect_key(
+            $data,
+            array_flip([
+                'full_name',
+                'email',
+                'phone',
+                'is_active',
+            ])
+        );
 
-        return $this->getStudent($id);
+        if (!empty($userData)) {
+            $affected = $this->userRepo->update(
+                $id,
+                $userData
+            );
+
+            $this->logger->info('Users table updated', [
+                'user_id' => $student['id'],
+                'affected_rows' => $affected,
+                'data' => $userData,
+            ]);
+        }
+
+        // Reload updated student
+        $updated = $this->getStudent($id);
+
+        $this->logger->info('Final student after update', $updated);
+
+        return $updated;
     }
-
     public function deleteStudent(int $id): void
     {
         $student = $this->getStudent($id); // يتأكد إنه موجود
 
+        // var_dump($student);
+
+        // die; 
+if (!$student) {
+    throw new NotFoundException('User not found');
+} 
         $this->db->beginTransaction();
 
         try {
-            $this->studentRepo->delete($id);
-            // اختياري: امسح الـ user المرتبط كمان لو ده المطلوب
-            // $this->userRepo->delete($student['user_id']);
+            $this->studentRepo->delete($student['student_id']);
+             $this->userRepo->delete($id); 
             $this->db->commit();
         } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
-
+            $this->db->rollBack(); 
+            throw $e; 
+        } 
+ 
         $this->logger->info("Student deleted", ['id' => $id]);
     }
 }
+   

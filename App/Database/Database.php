@@ -67,24 +67,25 @@ class Database
     return $result;
   }
 
-  // UPDATE
-  public function update($table, $data, $id)
-  {
-    $set = implode(", ", array_map(function ($key) {
-      return "$key = ?";
-    }, array_keys($data)));
+  // UPDATE 
+public function update(string $table, array $data, string $where, array $params = [])
+{
+    $set = implode(', ', array_map(
+        fn($key) => "$key = ?",
+        array_keys($data)
+    ));
 
-    $sql = "UPDATE $table SET $set WHERE id = ?";
+    $sql = "UPDATE $table SET $set WHERE $where";
 
     $stmt = $this->pdo->prepare($sql);
 
-    $values = array_values($data);
-    $values[] = $id;
-
-    $stmt->execute($values);
+    $stmt->execute([
+        ...array_values($data),
+        ...$params,
+    ]);
 
     return $stmt->rowCount();
-  }
+}
   // DELETE
   public function delete($table, $id)
   {
@@ -104,34 +105,40 @@ class Database
   }
 
 
-    // ===== NEW: Transactions =====
-    public function beginTransaction(): bool
-    {
-        return $this->pdo->beginTransaction();
-    }
+  // ===== NEW: Transactions =====
+  public function beginTransaction(): bool
+  {
+    return $this->pdo->beginTransaction();
+  }
 
-    public function commit(): bool
-    {
-        return $this->pdo->commit();
-    }
+  public function commit(): bool
+  {
+    return $this->pdo->commit();
+  }
 
-    public function rollBack(): bool
-    {
-        if ($this->pdo->inTransaction()) {
-            return $this->pdo->rollBack();
-        }
-        return false;
+  public function rollBack(): bool
+  {
+    if ($this->pdo->inTransaction()) {
+      return $this->pdo->rollBack();
     }
+    return false;
+  }
 
-    public function inTransaction(): bool
-    {
-        return $this->pdo->inTransaction();
-    }
+  public function inTransaction(): bool
+  {
+    return $this->pdo->inTransaction();
+  }
 
-    // مفيد لما تحتاج WHERE أعقد من عمود=قيمة بسيط (زي BY email)
-    public function selectOneWhere(string $table, string $where, array $params = []): ?array
-    {
-        return $this->selectOne("SELECT * FROM $table WHERE $where", $params);
-    }
+  // مفيد لما تحتاج WHERE أعقد من عمود=قيمة بسيط (زي BY email)
+  public function selectOneWhere(string $table, string $where, array $params = []): ?array
+  {
+    return $this->selectOne("SELECT * FROM $table WHERE $where", $params);
+  }
+  public function execute(string $sql, array $params = []): int
+  {
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->execute($params);
 
-}
+    return $stmt->rowCount();
+  }
+} 

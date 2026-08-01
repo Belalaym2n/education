@@ -59,4 +59,4 @@ interface LectureRepositoryInterface
     public function stageExists(int $stageId): bool;
 
     public function findByStageId(int $stageId): array;
-}
+} 

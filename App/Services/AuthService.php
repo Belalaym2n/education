@@ -20,7 +20,8 @@ class AuthService
         $this->logger = $logger;
     }
 
-    public function login(string $email, string $password): array
+    public function login(string $email, 
+    string $password): array
     {
         $user = $this->userRepo->findByEmail($email);
 
@@ -72,15 +73,15 @@ class AuthService
         ];
     }
 
-    public function generateToken(array $user): string
-    {
-        return JWT::encode([
-            'user_id' => $user['id'],
-            'role_id' => $user['role_id'],
-            'email' => $user['email'],
-        ]);
-    }
-
+public function generateToken(array $user): string
+{
+    return JWT::encode([
+        'user_id'    => $user['id'],
+        'student_id' => $user['student_id'] ?? null,
+        'role_id'    => $user['role_id'],
+        'email'      => $user['email'],
+    ]);
+}
     public function verifyPassword(string $plainPassword, string $hashedPassword): bool
     {
         return password_verify($plainPassword, $hashedPassword);

@@ -1,0 +1,7 @@
+# .gitignore
+.env
+vendor/
+App/Core/logs/
+App/Core/logs/
+rate_limits/
+.DS_Store 

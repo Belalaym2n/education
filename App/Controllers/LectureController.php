@@ -26,7 +26,7 @@ class LectureController
         [$limit, $offset, $sort, $order] = $this->getPaginationParams();
         $search = isset($_GET['search']) ? trim((string) $_GET['search']) : null;
 
-        if ($this->isAdmin()) {
+        if ($this->isAdmin()) { 
             $filters = ['search' => $search];
 
             if (isset($_GET['stage_id']) && $_GET['stage_id'] !== '') {
@@ -126,7 +126,7 @@ class LectureController
         if ($validator->hasErrors()) {
             throw new ValidationException($validator->getErrors());
         }
-  
+
 
         $createdBy = $this->getAuthUserId();
 
@@ -241,7 +241,7 @@ class LectureController
                 ]);
             }
         }
-
+ 
         $result = $this->lectureService->reorderLectures(
             (int) $requestData['stage_id'],
             $requestData['items']
@@ -322,13 +322,23 @@ class LectureController
         return (int) $id;
     }
 
-    public function getByStage(array $params):  
-{
-    $stageId = (int) ($params['stage_id'] ?? 0);
+    
 
-    $lectures = $this->lectureService->getLecturesByStage($stageId);
+    public function getByStage()
+    {
+  
+            $userId =
+            (int) ($_SERVER['auth_user_id'] ?? 0);
+        $lectures = $this->lectureService->getLecturesByStage($userId);
 
-          return ['success' => true, 'data' => $lectures, 'message' => 'Lectures reordered successfully'];
+        return ['success' => true, 'data' => $lectures, 'message' => 'Lectures reordered successfully'];
+    } 
+      public function getByStageForAdmin(int $id)
+    {
+   
+        $lectures = $this->lectureService->getLecturesByStageForAdmin($id);
 
-}
+        return ['success' => true, 'data' => $lectures, 'message' => 'Lectures reordered successfully'];
+    } 
 } 
+  

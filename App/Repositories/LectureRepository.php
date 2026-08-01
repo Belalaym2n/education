@@ -164,12 +164,12 @@ class LectureRepository implements LectureRepositoryInterface
 
     public function update(int $id, array $data): int
     {
-        return $this->db->update('lectures', $data, $id);
+        return $this->db->update('lectures', $data, 'id = ?', [$id]);
     }
 
-    public function softDelete(int $id): int
+     public function softDelete(int $id): int
     {
-        return $this->db->update('lectures', ['deleted_at' => date('Y-m-d H:i:s')], $id);
+        return $this->db->update('lectures', ['deleted_at' => date('Y-m-d H:i:s')],  'id = ?', [$id]);
     }
 
     public function slugExists(string $slug, ?int $excludeId = null): bool
@@ -197,14 +197,13 @@ class LectureRepository implements LectureRepositoryInterface
 
         return $this->db->selectOne($sql, $params) !== null;
     }
-
-    public function stageExists(int $stageId): bool
+     public function stageExists(int $stageId): bool
     {
         return $this->db->selectOne(
             'SELECT id FROM stages WHERE id = ?',
             [$stageId]
         ) !== null;
-    }
+    } 
 
     public function findByStageId(int $stageId): array
     {
@@ -215,7 +214,7 @@ class LectureRepository implements LectureRepositoryInterface
         FROM lectures l
         INNER JOIN stages s
             ON s.id = l.stage_id
-        WHERE
+        WHERE 
             l.stage_id = ?
             AND l.deleted_at IS NULL
         ORDER BY l.order_number ASC",
@@ -223,3 +222,4 @@ class LectureRepository implements LectureRepositoryInterface
         );
     }
 }
+ 

@@ -311,8 +311,24 @@ class LectureService
 
     public function getLecturesByStage(int $stageId): array
 {
-    $this->assertStageExists($stageId);
 
+
+     $user = $this->studentRepo->find($stageId);
+
+ 
+    $this->assertStageExists($user['stage_id']); 
+ 
+    return $this->lectureRepo->findByStageId($user['stage_id']);
+}
+
+    public function getLecturesByStageForAdmin(int $stageId): array
+{
+
+
+ 
+ 
+  
     return $this->lectureRepo->findByStageId($stageId);
 }
-} 
+}  
+ 

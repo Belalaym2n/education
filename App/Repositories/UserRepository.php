@@ -104,11 +104,25 @@ class UserRepository implements UserRepositoryInterface
 
         return (int) $this->db->insert('users', $data);
     }
-    public function update(int $id, array $data): int
-    {
-        $data['updated_at'] = date('Y-m-d H:i:s');
-        return $this->db->update('users', $data, $id);
-    }
+public function update(int $id, array $data): int
+{
+    $data['updated_at'] = date('Y-m-d H:i:s');
+
+    $affected = $this->db->update(
+        'users',
+        $data,
+        'id = ?',
+        [$id]
+    );
+
+    
+
+    // var_dump($user);
+    // die();
+
+    return $affected;
+ 
+} 
 
     public function delete(int $id): int
     {
