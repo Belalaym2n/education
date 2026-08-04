@@ -13,7 +13,8 @@ use App\Controllers\FlutterNotificationController;
 use App\Controllers\DeviceController;
 use App\Controllers\StudentResultController;
 use App\Controllers\QuizController;
-
+use App\Controllers\AttendanceController; // NEW
+ 
 use App\Controllers\AttemptController;
 use App\Controllers\ResultsController;
 
@@ -46,9 +47,9 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     );
     $router->get('/students/{id}', [StudentController::class, 'show'], ['auth']);
     $router->put('/students/{id}', [StudentController::class, 'update'], ['auth']);
-    $router->delete('/students/{id}', [StudentController::class, 'destroy'], ['auth', 'admin']);
+    $router->delete('/students/{id}', [StudentController::class, 'destroy'], ['auth']);
 
-
+  
     // --- Lectures ---
     $router->get('/lectures', [LectureController::class, 'index'], ['auth']);
 
@@ -153,6 +154,17 @@ $router->group(['prefix' => '/api'], function (Router $router) {
 /** @var Router $router */
 $router->group(['prefix' => '/api'], function (Router $router) {
 
+
+    $router->group(['prefix' => '/attendance', 'middleware' => ['auth']], function (Router $router) {
+        $router->post('/scan', [AttendanceController::class, 'scan']);
+        $router->post('/bulk', [AttendanceController::class, 'bulk']);
+       $router->get('/records', [AttendanceController::class, 'index']);
+    $router->get('/statistics', [AttendanceController::class, 'statistics']);
+    $router->post('/{id}/notify', [AttendanceController::class, 'notifyParent']);
+    
+   }); 
+
+
     // --- Admin dashboard: Notification management ---
 
     // --- Flutter app: read/unread flows (any authenticated student) ---
@@ -184,3 +196,4 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     $router->put('/student-results/{id}', [StudentResultController::class, 'update'], ['auth', 'admin']);
     $router->delete('/student-results/{id}', [StudentResultController::class, 'destroy'], ['auth', 'admin']);
 });
+

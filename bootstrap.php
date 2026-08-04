@@ -14,7 +14,17 @@ use App\Contracts\StudentRepositoryInterface;
 use App\Repositories\StudentRepository;
 
 use App\Contracts\UserRepositoryInterface;
-use App\Repositories\UserRepository;
+ use App\Repositories\UserRepository;
+ 
+// --- NEW: Father / guardian + attendance ---
+use App\Contracts\FatherRepositoryInterface;
+use App\Repositories\FatherRepository;
+use App\Contracts\FatherStudentRepositoryInterface;
+use App\Repositories\FatherStudentRepository;
+use App\Contracts\AttendanceRepositoryInterface;
+use App\Repositories\AttendanceRepository;
+use App\Services\AttendanceService;
+use App\Controllers\AttendanceController;
 
 use App\Services\StudentService;
 use App\Services\UserService;
@@ -92,7 +102,6 @@ $container->singleton(Database::class, function () {
     );
 });
 
-
 $container->singleton(Logger::class, function () {
     return new Logger();
 });
@@ -108,6 +117,11 @@ $container->bind(UserRepositoryInterface::class, function ($c) {
 $container->bind(NotificationRepositoryInterface::class, fn($c) => new NotificationRepository($c->make(Database::class)));
 $container->bind(NotificationReadRepositoryInterface::class, fn($c) => new NotificationReadRepository($c->make(Database::class)));
 $container->bind(DeviceRepositoryInterface::class, fn($c) => new DeviceRepository($c->make(Database::class)));
+
+// --- NEW: Father / guardian + attendance repositories ---
+$container->bind(FatherRepositoryInterface::class, fn($c) => new FatherRepository($c->make(Database::class)));
+$container->bind(FatherStudentRepositoryInterface::class, fn($c) => new FatherStudentRepository($c->make(Database::class)));
+$container->bind(AttendanceRepositoryInterface::class, fn($c) => new AttendanceRepository($c->make(Database::class)));
 
 $container->bind(StageRepositoryInterface::class, function ($c) {
     return new StageRepository($c->make(Database::class));
@@ -158,10 +172,14 @@ $container->bind(StageService::class, function ($c) {
         $c->make(Logger::class)
     );
 });
+
+// --- MODIFIED: StudentService now also needs Father + FatherStudent repos ---
 $container->bind(StudentService::class, function ($c) {
     return new StudentService(
         $c->make(StudentRepositoryInterface::class),
         $c->make(UserRepositoryInterface::class),
+        $c->make(FatherRepositoryInterface::class),
+        $c->make(FatherStudentRepositoryInterface::class),
         $c->make(UserService::class),
         $c->make(AuthService::class),
         $c->make(Database::class),
@@ -187,6 +205,15 @@ $container->bind(DeviceService::class, fn($c) => new DeviceService(
     $c->make(Logger::class),
 ));
 
+// --- NEW: Attendance service ---
+$container->bind(AttendanceService::class, fn($c) => new AttendanceService(
+    $c->make(AttendanceRepositoryInterface::class),
+    $c->make(StudentRepositoryInterface::class),
+    $c->make(FatherStudentRepositoryInterface::class),
+    $c->make(NotificationService::class),
+    $c->make(Database::class),
+    $c->make(Logger::class),
+));
 
 
 // --- Controllers ---
@@ -237,12 +264,20 @@ $container->bind(LectureController::class, function ($c) {
 
 
 
-
 $container->bind(NotificationController::class, fn($c) => new NotificationController($c->make(NotificationService::class)));
 $container->bind(FlutterNotificationController::class, fn($c) => new FlutterNotificationController($c->make(NotificationService::class)));
 $container->bind(DeviceController::class, fn($c) => new DeviceController($c->make(DeviceService::class)));
 
-
+// --- NEW: Attendance controller ---
+$container->bind(
+    AttendanceController::class,
+    fn($c) => new AttendanceController(
+        $c->make(AttendanceService::class),
+        $c->make(AttendanceRepositoryInterface::class),
+        $c->make(NotificationService::class),
+    ) 
+);
+ 
 $container->bind(StudentResultRepositoryInterface::class, function ($c) {
     return new StudentResultRepository($c->make(Database::class));
 });
@@ -289,7 +324,7 @@ $container->bind(QuizController::class, function ($c) {
     return new QuizController($c->make(QuizService::class));
 });
 
- 
+
 // --- Repositories ---
 $container->bind(AttemptRepositoryInterface::class, function ($c) {
     return new AttemptRepository($c->make(Database::class));
@@ -310,14 +345,14 @@ $container->bind(AttemptService::class, function ($c) {
     );
 });
 
-$container->bind(EssayReviewService::class, function ($c) {
-    return new EssayReviewService(
-        $c->make(AttemptRepositoryInterface::class),
-        $c->make(AttemptAnswerRepositoryInterface::class),
-        $c->make(Database::class),
-        $c->make(Logger::class),
-    );
-});
+// $container->bind(EssayReviewService::class, function ($c) {
+//     return new EssayReviewService(
+//         $c->make(AttemptRepositoryInterface::class),
+//         $c->make(AttemptAnswerRepositoryInterface::class),
+//         $c->make(Database::class),
+//         $c->make(Logger::class),
+//     );
+// });
 
 $container->bind(ResultsService::class, function ($c) {
     return new ResultsService(
@@ -331,11 +366,11 @@ $container->bind(AttemptController::class, function ($c) {
     return new AttemptController($c->make(AttemptService::class));
 });
 
-$container->bind(ResultsController::class, function ($c) {
-    return new ResultsController(
-        $c->make(ResultsService::class),
-        $c->make(EssayReviewService::class),
-    );
-});
+// $container->bind(ResultsController::class, function ($c) {
+//     return new ResultsController(
+//         $c->make(ResultsService::class),
+//         $c->make(EssayReviewService::class),
+//     );
+// });
 
 return $container;

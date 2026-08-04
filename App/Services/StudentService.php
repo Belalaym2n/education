@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Contracts\FatherRepositoryInterface;
+use App\Contracts\FatherStudentRepositoryInterface;
 use App\Contracts\StudentRepositoryInterface;
 use App\Contracts\UserRepositoryInterface;
+use App\Core\Config;
 use App\Core\Logger;
 use App\Database\Database;
 use App\Exceptions\ValidationException;
@@ -11,8 +14,13 @@ use App\Exceptions\NotFoundException;
 
 class StudentService
 {
+    /** Role id for the auto-created guardian account (see `roles` table: 2 = father). */
+    private const FATHER_ROLE_ID = '2';
+
     private StudentRepositoryInterface $studentRepo;
     private UserRepositoryInterface $userRepo;
+    private FatherRepositoryInterface $fatherRepo;
+    private FatherStudentRepositoryInterface $fatherStudentRepo;
     private UserService $userService;
     private AuthService $authService;
     private Database $db;
@@ -21,6 +29,8 @@ class StudentService
     public function __construct(
         StudentRepositoryInterface $studentRepo,
         UserRepositoryInterface $userRepo,
+        FatherRepositoryInterface $fatherRepo,
+        FatherStudentRepositoryInterface $fatherStudentRepo,
         UserService $userService,
         AuthService $authService,
         Database $db,
@@ -28,6 +38,8 @@ class StudentService
     ) {
         $this->studentRepo = $studentRepo;
         $this->userRepo = $userRepo;
+        $this->fatherRepo = $fatherRepo;
+        $this->fatherStudentRepo = $fatherStudentRepo;
         $this->userService = $userService;
         $this->authService = $authService;
         $this->db = $db;
@@ -35,7 +47,9 @@ class StudentService
     }
 
     /**
-     * تسجيل طالب جديد: بيعمل User + Student profile جوه Transaction واحدة
+     * Registers a new student AND auto-provisions their father/guardian account,
+     * all inside one transaction. If any step fails, everything rolls back —
+     * there is never a student without a matching guardian account, or vice versa.
      */
     public function registerStudent(array $data): array
     {
@@ -43,26 +57,60 @@ class StudentService
 
         $this->db->beginTransaction();
 
+        $studentId = null;
+        $fatherId = null;
+        $fatherUserId = null;
+        $fatherEmail = null;
+        $qrCode = null;
+
         try {
+            // The student and the auto-created father share the exact same
+            // password. We hash it once and reuse the hash for both rows —
+            // there is no requirement that the hash *string* differ, only
+            // that the plaintext is never stored, and password_verify()
+            // against either row works identically.
+            $passwordHash = $this->userService->hashPassword($data['password']);
+
+            // 1. Create the student's own user account.
             $userId = $this->userRepo->create([
                 'full_name' => $data['full_name'],
                 'email' => $data['email'],
-                'phone'
-                => $data['phone'],
-
-                'password_hash' =>
-                $this->userService->hashPassword($data['password']),
+                'phone' => $data['phone'],
+                'password_hash' => $passwordHash,
                 'role_id' => $data['role_id'],
-                'is_active' => 1
+                'is_active' => 1,
             ]);
 
-            // 2. Create Student profile مرتبط بالـ user_id
+            // 2. Create the Student profile, with a fresh opaque QR identity token.
+            $qrCode = $this->generateUniqueQrCode();
+
             $studentId = $this->studentRepo->create([
                 'user_id' => $userId,
                 'stage_id' => $data['stage_id'],
                 'parent_phone' => $data['parent_phone'],
+                'qr_code' => $qrCode,
             ]);
 
+            // 3. Auto-create the Father/Guardian user account. The frontend
+            //    never supplies a role or email for this account — both are
+            //    decided entirely by the backend, per spec.
+            $fatherEmail = $this->generateFatherEmail($userId);
+
+            $fatherUserId = $this->userRepo->create([
+                'full_name' => $data['full_name'] . ' - Guardian',
+                'email' => $fatherEmail,
+                'phone' => $data['parent_phone'],
+                'password_hash' => $passwordHash,
+                'role_id' => self::FATHER_ROLE_ID,
+                'is_active' => 1,
+            ]);
+
+            $fatherId = $this->fatherRepo->create(['user_id' => $fatherUserId]);
+
+            // 4. Link them via father_student (many-to-many, supports
+            //    additional guardians later without any schema change).
+            $this->fatherStudentRepo->link($fatherId, $studentId, 'father', true);
+ 
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
@@ -76,7 +124,11 @@ class StudentService
             array_merge($user, ['id' => $userId])
         );
 
-        $this->logger->info("New student registered", ['user_id' => $userId, 'student_id' => $studentId]);
+        $this->logger->info("New student registered", [
+            'user_id' => $userId,
+            'student_id' => $studentId,
+            'father_user_id' => $fatherUserId,
+        ]);
 
         return [
             'user' => [
@@ -88,15 +140,47 @@ class StudentService
                 'is_active' => (bool) $user['is_active'],
             ],
             'student' => [
-
                 'id' => (int) $studentId,
+                'qr_code' => $qrCode,
                 'stage' => [
                     'id' => (int) $user['stage_id'],
                     'name' => $user['stage_name'],
                 ],
             ],
+            'father' => [
+                'id' => (int) $fatherId,
+                'user_id' => (int) $fatherUserId,
+                'email' => $fatherEmail,
+            ],
             'token' => $token,
         ];
+    }
+
+    /**
+     * <PlatformPrefix><StudentUserID>@gmail.com — prefix lives in config,
+     * never hardcoded at each call site. Deterministic on the student's
+     * user_id, so it is guaranteed unique given users.email is unique.
+     */
+    private function generateFatherEmail(int $studentUserId): string
+    {
+        $prefix = Config::get('father.email_prefix') ?: 'platform';
+
+        return $prefix . $studentUserId . '@gmail.com';
+    }
+
+    /**
+     * Opaque QR identity token. Never the raw student_id/user_id — those are
+     * guessable sequential integers, and printing them on a physical QR code
+     * would let anyone submit forged attendance for another student.
+     */
+    private function generateUniqueQrCode(): string
+    {
+        do {
+            $code = strtoupper(bin2hex(random_bytes(8))); // 16 hex chars
+            $exists = $this->studentRepo->findByQrCode($code);
+        } while ($exists !== null);
+
+        return $code;
     }
 
     public function getStudent(int $id): array
@@ -104,7 +188,7 @@ class StudentService
         $student = $this->studentRepo->find($id);
 
         if (!$student) {
-            throw new NotFoundException("Student");
+            throw new NotFoundException("الطالب المطلوب غير موجود.");
         }
 
         return $student;
@@ -178,28 +262,31 @@ class StudentService
 
         return $updated;
     }
+
     public function deleteStudent(int $id): void
     {
         $student = $this->getStudent($id); // يتأكد إنه موجود
 
-        // var_dump($student);
+        if (!$student) {
+            throw new NotFoundException('User not found');
+        }
 
-        // die; 
-if (!$student) {
-    throw new NotFoundException('User not found');
-} 
         $this->db->beginTransaction();
 
         try {
             $this->studentRepo->delete($student['student_id']);
-             $this->userRepo->delete($id); 
+            $this->userRepo->delete($id);
             $this->db->commit();
         } catch (\Throwable $e) {
-            $this->db->rollBack(); 
-            throw $e; 
-        } 
- 
+            $this->db->rollBack();
+            throw $e;
+        }
+
         $this->logger->info("Student deleted", ['id' => $id]);
+
+        // NOTE (edge case, not auto-handled): this does not delete or
+        // deactivate the linked father account, since a father may guard
+        // multiple students. If this is the student's only linked child,
+        // consider a follow-up admin action to deactivate the guardian too.
     }
 }
-   

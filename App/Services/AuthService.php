@@ -26,15 +26,15 @@ class AuthService
         $user = $this->userRepo->findByEmail($email);
 
         if (!$user) {
-            throw new ValidationException(['email' => 'Invalid credentials']);
-        }
+            throw new ValidationException(['email' => 'بيانات تسجيل الدخول غير صحيحة.']);
+        } 
 
         if (!$this->verifyPassword($password, $user['password_hash'])) {
-            throw new ValidationException(['password' => 'Invalid credentials']);
+            throw new ValidationException(['password' => 'بيانات تسجيل الدخول غير صحيحة.']);
         }
 
         if (!$this->isActive($user)) {
-            throw new AuthException('Your account has been deactivated',);
+            throw new AuthException('تم تعطيل حسابك. يُرجى التواصل مع الإدارة للحصول على المساعدة.',);
         }
 
         $token = $this->generateToken($user);
@@ -92,7 +92,7 @@ public function generateToken(array $user): string
         try {
             return JWT::decode($token);
         } catch (\Exception $e) {
-            throw new AuthException('Invalid or expired token', 'INVALID_TOKEN');
+            throw new AuthException('المستخدم غير موجود أو تم حذف الحساب');
         }
     }
 
@@ -103,11 +103,11 @@ public function generateToken(array $user): string
         $user = $this->userRepo->find((int) $payload['user_id']);
 
         if (!$user) {
-            throw new AuthException('User no longer exists', 'USER_NOT_FOUND');
+            throw new AuthException('User no longer exists');
         }
 
         if (!$this->isActive($user)) {
-            throw new AuthException('Account is deactivated', 'ACCOUNT_INACTIVE');
+            throw new AuthException('Account is deactivated',);
         }
 
         unset($user['password']);
@@ -119,7 +119,7 @@ public function generateToken(array $user): string
     {
         // JWT بطبيعته stateless. لو محتاج تبطل التوكن فعلياً محتاج blacklist في DB/Redis
         // ده placeholder بيرجع رد منطقي للـ client عشان يمسح التوكن بتاعه
-        return ['message' => 'Logged out successfully'];
+        return ['message' => 'تم تسجيل الخروج بنجاح.'];
     }
 
     private function isActive(array $user): bool

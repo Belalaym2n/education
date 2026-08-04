@@ -22,7 +22,7 @@ class AuthController
         $this->authService = $authService;
         $this->userService = $userService;
         $this->studentService = $studentService;
-    }
+    } 
 
     public function login(array $requestData): array
     {
@@ -165,39 +165,11 @@ class AuthController
             (int) ($_SERVER['auth_user_id'] ?? 0);
         $user = $this->userService->getUser($userId);
 
-        return ['success' => true, 'data' =>
-        [
-            'user' => [
-                'id' => $user['id'],
-                'full_name' => $user['full_name'],
-                'email' => $user['email'],
-                'phone' => $user['phone'],
-                'is_active' => $user['is_active'],
-                'created_at' => $user['created_at'],
-                'updated_at' => $user['updated_at'],
+    
 
-                'role' => [
-                    'id' => $user['role_id'],
-                    'code' => $user['role_name']
-                ]
-            ],
-
-            'student' => $user['student_id']
-                ? [
-                    'id' => $user['student_id'],
-                    'average_score' => $user['average_score'],
-                    'total_quizzes' => $user['total_quizzes'],
-                    'total_degrees' => $user['total_degrees'],
-
-
-                    'stage' => [
-                        'id' => $user['stage_id'],
-                        'name' => $user['stage_name']
-                    ]
-                ]
-                : null,
-
-        ]];
+         return ['success' => true, 
+        'data' => $user];
+      
     }
 
     public function logout(): array

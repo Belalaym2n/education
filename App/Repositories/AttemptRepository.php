@@ -15,10 +15,10 @@ class AttemptRepository implements AttemptRepositoryInterface
         $this->db = $db;
     }
 
-public function find(int $id): ?array
-{
-    return $this->db->selectOne(
-        "SELECT
+    public function find(int $id): ?array
+    {
+        return $this->db->selectOne(
+            "SELECT
             qa.*,
             q.headline AS quiz_name,
             u.full_name AS student_name
@@ -27,9 +27,9 @@ public function find(int $id): ?array
          INNER JOIN students s ON s.id = qa.student_id
          INNER JOIN users u ON u.id = s.user_id
          WHERE qa.id = ? AND qa.deleted_at IS NULL",
-        [$id]
-    );
-}
+            [$id]
+        );
+    }
     public function findLatestByQuizAndStudent(int $quizId, int $studentId): ?array
     {
         return $this->db->selectOne(
@@ -54,7 +54,7 @@ public function find(int $id): ?array
         int $quizId,
         array $filters,
         int $limit,
-        int $offset,
+        int $offset, 
         string $sort,
         string $order
     ): array {
@@ -166,12 +166,31 @@ public function find(int $id): ?array
     {
         $answers = $this->db->query(
             "SELECT qaa.*, qq.type, qq.marks, qq.negative_marks
-             FROM quiz_attempt_answers qaa
-             INNER JOIN quiz_questions qq ON qq.id = qaa.question_id
-             WHERE qaa.attempt_id = ? AND qq.deleted_at IS NULL
-             ORDER BY qaa.id",
+         FROM quiz_attempt_answers qaa
+         INNER JOIN quiz_questions qq ON qq.id = qaa.question_id
+         WHERE qaa.attempt_id = ? AND qq.deleted_at IS NULL
+         ORDER BY qaa.id",
             [$attemptId]
         );
+
+        if (empty($answers)) {
+            return ['graded_count' => 0, 'correct_count' => 0, 'total_marks_awarded' => 0];
+        }
+
+        $questionIds = array_unique(array_map(fn($a) => (int) $a['question_id'], $answers));
+        $placeholders = implode(',', array_fill(0, count($questionIds), '?'));
+
+        $correctRows = $this->db->query(
+            "SELECT question_id, id FROM quiz_question_choices
+         WHERE question_id IN ($placeholders) AND is_correct = 1
+         ORDER BY id",
+            $questionIds
+        );
+
+        $correctByQuestion = [];
+        foreach ($correctRows as $row) {
+            $correctByQuestion[(int) $row['question_id']][] = (int) $row['id'];
+        }
 
         $graded = 0;
         $correct = 0;
@@ -179,10 +198,11 @@ public function find(int $id): ?array
 
         foreach ($answers as $answer) {
             if (!QuestionType::isAutoGraded($answer['type'])) {
-                continue; // essay/audio/video stay null, teacher will grade later
+                continue;
             }
 
-            $isCorrect = $this->gradeObjectiveAnswer($answer);
+            $correctIds = $correctByQuestion[(int) $answer['question_id']] ?? [];
+            $isCorrect = $this->gradeObjectiveAnswer($answer, $correctIds);
             $marksAwarded = $isCorrect ? (float) $answer['marks'] : 0.0;
 
             if (!$isCorrect && (float) ($answer['negative_marks'] ?? 0) > 0) {
@@ -191,7 +211,7 @@ public function find(int $id): ?array
 
             $this->db->update('quiz_attempt_answers', [
                 'is_correct' => $isCorrect ? 1 : 0,
-                'marks_awarded' => max(0, $marksAwarded), // never negative
+                'marks_awarded' => max(0, $marksAwarded),
             ], 'id = ?', [$answer['id']]);
 
             $graded++;
@@ -206,6 +226,32 @@ public function find(int $id): ?array
             'correct_count' => $correct,
             'total_marks_awarded' => $totalAwarded,
         ];
+    }
+
+    private function gradeObjectiveAnswer(array $answer, array $correctIds): bool
+    {
+        $type = $answer['type'];
+        $selectedChoiceIds = !empty($answer['selected_choice_ids'])
+            ? json_decode($answer['selected_choice_ids'], true)
+            : [];
+
+        if (!is_array($selectedChoiceIds)) {
+            $selectedChoiceIds = [];
+        }
+
+        if ($type === 'mcq' || $type === 'true_false' || $type === 'image_choice') {
+            return count($selectedChoiceIds) === 1 && in_array((int) $selectedChoiceIds[0], $correctIds, true);
+        }
+
+        if ($type === 'multi_select') {
+            $selectedSet = array_map('intval', $selectedChoiceIds);
+            sort($selectedSet);
+            $correctSorted = $correctIds;
+            sort($correctSorted);
+            return $selectedSet === $correctSorted;
+        }
+
+        return false;
     }
 
     public function publishReviewedAnswers(int $quizId, array $answerIds, int $reviewerId): int

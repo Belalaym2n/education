@@ -13,21 +13,36 @@ class UserRepository implements UserRepositoryInterface
     {
         $this->db = $db;
     }
-
     public function find(int $id): ?array
-    {
-        return $this->db->selectOne(
-            "
+{
+    return $this->db->selectOne(
+        "
         SELECT
             u.id,
             u.full_name,
             u.email,
             u.phone,
+            u.password_hash,
+            u.role_id, 
+            r.code AS role_name,
 
-            u.role_id,
+            s.id AS student_id,
+            s.stage_id,
+            s.parent_phone,
+            s.profile_image,
+            s.enrollment_date,
+            s.average_score,
+            s.total_quizzes,
+            s.total_degrees,
+            s.total_lectures,
+            s.created_at AS student_created_at,
+            s.updated_at AS student_updated_at,
+
+            st.name AS stage_name,
+
             u.is_active,
             u.created_at,
-            u.updated_at 
+            u.updated_at
 
         FROM users u
 
@@ -36,13 +51,15 @@ class UserRepository implements UserRepositoryInterface
 
         LEFT JOIN students s
             ON s.user_id = u.id
- 
+
+        LEFT JOIN stages st
+            ON st.id = s.stage_id
 
         WHERE u.id = ?
         ",
-            [$id]
-        );
-    }
+        [$id]
+    );
+}
 
     public function findByEmail(string $email): ?array
     {
@@ -104,30 +121,38 @@ class UserRepository implements UserRepositoryInterface
 
         return (int) $this->db->insert('users', $data);
     }
-public function update(int $id, array $data): int
-{
-    $data['updated_at'] = date('Y-m-d H:i:s');
+    public function update(int $id, array $data): int
+    {
+        $data['updated_at'] = date('Y-m-d H:i:s');
 
-    $affected = $this->db->update(
+        $affected = $this->db->update(
+            'users',
+            $data,
+            'id = ?',
+            [$id]
+        );
+
+
+
+        // var_dump($user);
+        // die();
+
+        return $affected;
+    }
+
+ public function delete(int $id): int 
+{
+    return $this->db->update(
         'users',
-        $data,
+        [
+            'is_active' => 0,
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ],
         'id = ?',
         [$id]
     );
-
-    
-
-    // var_dump($user);
-    // die();
-
-    return $affected;
- 
-} 
-
-    public function delete(int $id): int
-    {
-        return $this->db->delete('users', $id);
-    }
+}
 
     public function exists(string $email): bool
     {
@@ -138,11 +163,11 @@ public function update(int $id, array $data): int
     public function updatePassword(int $id, string $hashedPassword): int
     {
         return $this->db->update('users', [
-            'password' => $hashedPassword,
+            'password' => $hashedPassword, 
             'updated_at' => date('Y-m-d H:i:s')
         ], $id);
     }
-
+ 
     public function updateRole(int $id, string $role): int
     {
         return $this->db->update('users', [

@@ -15,10 +15,11 @@ $container = require __DIR__ . "/bootstrap.php";
 use App\Core\ErrorHandler;
 use App\Middleware\AuthMiddleware;
 
-ErrorHandler::init(true);
+ErrorHandler::init(Config::get('app.debug'));
 
 header('Content-Type: application/json');
   
+ 
 $origin = Config::get('app.env') === 'production'
     ? 'https://yourdomain.com'
     : '*';

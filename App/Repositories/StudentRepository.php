@@ -79,8 +79,10 @@ class StudentRepository implements StudentRepositoryInterface
     $sort = in_array($sort, $sortable, true) ? $sort : 'created_at';
     $order = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
 
-    $where = ['s.deleted_at IS NULL'];
-    $params = [];
+$where = [
+    's.deleted_at IS NULL',
+    'u.deleted_at IS NULL',
+];     $params = [];
 
     if (isset($filters['stage_id'])) {
         $where[] = 's.stage_id = ?';
@@ -190,5 +192,43 @@ return $this->db->update(
         [$id]
     );
 } 
+
+    public function findByQrCode(string $qrCode): ?array
+    {
+        return $this->db->selectOne(
+            "
+            SELECT
+                s.id,
+                s.user_id,
+                s.stage_id,
+                s.qr_code,
+                s.deleted_at
+            FROM students s
+            WHERE s.qr_code = ? AND s.deleted_at IS NULL
+            ",
+            [$qrCode]
+        );
+    }
+ 
+    public function findManyByQrCodes(array $qrCodes): array
+    {
+        $qrCodes = array_values(array_unique(array_filter($qrCodes, fn($c) => $c !== '')));
+ 
+        if (empty($qrCodes)) {
+            return [];
+        }
+ 
+        $placeholders = implode(',', array_fill(0, count($qrCodes), '?'));
+ 
+        return $this->db->query(
+            "
+            SELECT s.id, s.user_id, s.stage_id, s.qr_code
+            FROM students s
+            WHERE s.qr_code IN ($placeholders) AND s.deleted_at IS NULL
+            ",
+            $qrCodes
+        ); 
+    }
+ 
 }
  

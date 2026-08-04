@@ -1,7 +1,7 @@
 <?php
- 
+
 namespace App\Services;
- 
+
 use App\Contracts\CouponRepositoryInterface;
 use App\Contracts\LectureRepositoryInterface;
 use App\Contracts\LectureOwnershipRepositoryInterface;
@@ -13,7 +13,7 @@ use App\Database\Database;
 use App\Exceptions\BusinessException;
 use App\Exceptions\NotFoundException;
 use App\Exceptions\ValidationException;
- 
+
 /**
  * PATCHED VERSION. Only the methods that changed or were added are shown
  * with full bodies below; everything else (updateCoupon, deleteCoupon,
@@ -41,7 +41,7 @@ class CouponService
     private CouponCodeGenerator $codeGenerator;
     private Database $db;
     private Logger $logger;
- 
+
     public function __construct(
         CouponRepositoryInterface $couponRepo,
         LectureRepositoryInterface $lectureRepo,
@@ -61,27 +61,33 @@ class CouponService
         $this->db = $db;
         $this->logger = $logger;
     }
- 
+
     // =====================================================================
     // ADMIN: CREATE
     // =====================================================================
 
- 
+
     public function createCoupon(array $data, int $adminUserId): array
     {
         $lecture = $this->lectureRepo->find((int) $data['lecture_id']);
         if (!$lecture) {
-            throw new ValidationException(['lecture_id' => 'Lecture does not exist or has been removed']);
+            throw new ValidationException([
+                'lecture_id' => 'المحاضرة غير موجودة أو تم حذفها.'
+            ]);
         }
- 
+
         $creator = $this->userRepo->find($adminUserId);
         if (!$creator) {
-            throw new ValidationException(['created_by' => 'Creating user does not exist']);
+            throw new ValidationException([
+                'created_by' => 'المستخدم المنشئ غير موجود.'
+            ]);
         }
         if (!$this->isActiveUser($creator)) {
-            throw new ValidationException(['created_by' => 'Creating user is not active']);
+            throw new ValidationException([
+                'created_by' => 'المستخدم المنشئ غير نشط.'
+            ]);
         }
- 
+
         if (!empty($data['code'])) {
             $code = $this->normalizeCode($data['code']);
             $this->assertCodeIsUsable($code);
@@ -89,15 +95,17 @@ class CouponService
             // No manual code supplied -> generate one server-side.
             $code = $this->codeGenerator->generate((string) ($data['prefix'] ?? 'CPN'));
         }
- 
+
         $maxUses = (int) $data['max_uses'];
         if ($maxUses < CouponConstants::MAX_USES_MIN || $maxUses > CouponConstants::MAX_USES_MAX) {
-            throw new ValidationException(['max_uses' => 'max_uses must be between ' . CouponConstants::MAX_USES_MIN . ' and ' . CouponConstants::MAX_USES_MAX]);
+            throw new ValidationException([
+                'max_uses' => 'يجب أن تكون قيمة الحد الأقصى للاستخدام بين ' . CouponConstants::MAX_USES_MIN . ' و ' . CouponConstants::MAX_USES_MAX . '.'
+            ]);
         }
- 
+
         $expireAt = $this->normalizeExpireAt($data['expire_at'] ?? null);
         $isActive = isset($data['is_active']) ? (bool) $data['is_active'] : true;
- 
+
         $id = $this->couponRepo->create([
             'lecture_id' => (int) $lecture['id'],
             'code' => $code,
@@ -107,38 +115,42 @@ class CouponService
             'is_active' => $isActive ? 1 : 0,
             'created_by' => $adminUserId,
         ]);
- 
+
         $this->logger->info('Coupon created', ['coupon_id' => $id, 'lecture_id' => $lecture['id'], 'admin_id' => $adminUserId]);
- 
+
         return $this->getCoupon($id);
     }
- 
-        
+
+
     public function createCouponsBulk(array $data, int $adminUserId): array
     {
         $lecture = $this->lectureRepo->find((int) $data['lecture_id']);
         if (!$lecture) {
-            throw new ValidationException(['lecture_id' => 'Lecture does not exist or has been removed']);
+            throw new ValidationException([
+                'lecture_id' => 'المحاضرة غير موجودة أو تم حذفها.'
+            ]);
         }
- 
+
         $count = (int) $data['count'];
         if ($count < 1 || $count > CouponConstants::BULK_MAX_COUNT) {
             throw new ValidationException([
-                'count' => 'count must be between 1 and ' . CouponConstants::BULK_MAX_COUNT,
+                'count' => 'يجب أن تكون قيمة العدد بين 1 و ' . CouponConstants::BULK_MAX_COUNT . '.',
             ]);
         }
- 
+
         $maxUses = (int) $data['max_uses'];
         if ($maxUses < CouponConstants::MAX_USES_MIN || $maxUses > CouponConstants::MAX_USES_MAX) {
-            throw new ValidationException(['max_uses' => 'max_uses must be between ' . CouponConstants::MAX_USES_MIN . ' and ' . CouponConstants::MAX_USES_MAX]);
+            throw new ValidationException([
+                'max_uses' => 'يجب أن تكون قيمة الحد الأقصى للاستخدام بين ' . CouponConstants::MAX_USES_MIN . ' و ' . CouponConstants::MAX_USES_MAX . '.'
+            ]);
         }
- 
+
         $expireAt = $this->normalizeExpireAt($data['expire_at'] ?? null);
         $isActive = isset($data['is_active']) ? (bool) $data['is_active'] : true;
         $prefix = (string) ($data['prefix'] ?? 'CPN');
- 
+
         $codes = $this->codeGenerator->generateBatch($prefix, $count);
- 
+
         $this->db->beginTransaction();
         try {
             $rows = array_map(fn(string $code) => [
@@ -150,26 +162,26 @@ class CouponService
                 'is_active' => $isActive ? 1 : 0,
                 'created_by' => $adminUserId,
             ], $codes);
- 
+
             $ids = $this->couponRepo->createMany($rows);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
             throw $e;
         }
- 
+
         $this->logger->info('Coupons bulk-created', [
             'lecture_id' => $lecture['id'],
             'count' => count($ids),
             'admin_id' => $adminUserId,
         ]);
- 
+
         return [
             'created' => array_map(fn(int $id) => $this->getCoupon($id), $ids),
             'failed_count' => $count - count($ids),
         ];
     }
- 
+
     // =====================================================================
     // ADMIN: UPDATE
     // =====================================================================
@@ -178,7 +190,7 @@ class CouponService
     {
         $coupon = $this->couponRepo->find($id);
         if (!$coupon) {
-            throw new NotFoundException('Coupon');
+            throw new NotFoundException('الكوبون');
         }
 
         $updates = [];
@@ -186,7 +198,9 @@ class CouponService
         if (isset($data['lecture_id']) && (int) $data['lecture_id'] !== (int) $coupon['lecture_id']) {
             $lecture = $this->lectureRepo->find((int) $data['lecture_id']);
             if (!$lecture) {
-                throw new ValidationException(['lecture_id' => 'Lecture does not exist or has been removed']);
+                throw new ValidationException([
+                    'lecture_id' => 'المحاضرة غير موجودة أو تم حذفها.'
+                ]);
             }
             $updates['lecture_id'] = (int) $lecture['id'];
         }
@@ -202,13 +216,17 @@ class CouponService
         if (isset($data['max_uses'])) {
             $maxUses = (int) $data['max_uses'];
             if ($maxUses < CouponConstants::MAX_USES_MIN || $maxUses > CouponConstants::MAX_USES_MAX) {
-                throw new ValidationException(['max_uses' => 'max_uses must be between ' . CouponConstants::MAX_USES_MIN . ' and ' . CouponConstants::MAX_USES_MAX]);
+                throw new ValidationException([
+                    'max_uses' => 'يجب أن تكون قيمة الحد الأقصى للاستخدام بين ' . CouponConstants::MAX_USES_MIN . ' و ' . CouponConstants::MAX_USES_MAX . '.'
+                ]);
             }
             // Business rule: max_uses can never drop below what has
             // already been consumed — that would make times_used exceed
             // max_uses and corrupt the "is this coupon expired" logic.
             if ($maxUses < (int) $coupon['times_used']) {
-                throw new ValidationException(['max_uses' => 'max_uses cannot be lower than the number of times this coupon has already been used (' . $coupon['times_used'] . ')']);
+                throw new ValidationException([
+                    'max_uses' => 'لا يمكن أن تكون قيمة الحد الأقصى للاستخدام أقل من عدد مرات استخدام الكوبون الحالية (' . $coupon['times_used'] . ').'
+                ]);
             }
             $updates['max_uses'] = $maxUses;
         }
@@ -237,7 +255,7 @@ class CouponService
     {
         $coupon = $this->couponRepo->find($id);
         if (!$coupon) {
-            throw new NotFoundException('Coupon');
+            throw new NotFoundException('الكوبون');
         }
 
         $this->couponRepo->softDelete($id);
@@ -254,7 +272,7 @@ class CouponService
         // to the repository/interface — everything else here stays the same.
         $coupon = $this->couponRepo->find($id) ?? null;
         if ($coupon === null) {
-            throw new NotFoundException('Coupon');
+            throw new NotFoundException('الكوبون');
         }
 
         $this->couponRepo->restore($id);
@@ -271,7 +289,7 @@ class CouponService
     {
         $coupon = $this->couponRepo->find($id);
         if (!$coupon) {
-            throw new NotFoundException('Coupon');
+            throw new NotFoundException('الكوبون');
         }
 
         return $this->toAdminDto($coupon);
@@ -292,10 +310,10 @@ class CouponService
         $perPage = max(1, min($perPage, CouponConstants::MAX_PAGE_SIZE));
         $page = max(1, $page);
         $offset = ($page - 1) * $perPage;
- 
+
         $rows = $this->couponRepo->paginate($perPage, $offset, $search, $lectureId, $isActive, $sortBy, $sortDir, $stageId, $status);
         $total = $this->couponRepo->count($search, $lectureId, $isActive, $stageId, $status);
- 
+
         return [
             'data' => array_map(fn($row) => $this->toAdminDto($row), $rows),
             'meta' => [
@@ -306,7 +324,7 @@ class CouponService
             ],
         ];
     }
- 
+
     public function getSummary(?string $search, ?int $lectureId, ?int $stageId): array
     {
         $s = $this->couponRepo->summary($search, $lectureId, $stageId);
@@ -315,8 +333,8 @@ class CouponService
             : 0.0;
         return $s;
     }
- 
-       public function exportCoupons(
+
+    public function exportCoupons(
         ?string $search,
         ?int $lectureId,
         ?bool $isActive,
@@ -343,18 +361,23 @@ class CouponService
         $code = $this->normalizeCode($rawCode);
 
         if ($code === '') {
-            throw new ValidationException(['code' => 'Coupon code is required']);
+            throw new ValidationException([
+                'code' => 'كود الكوبون مطلوب.'
+            ]);
         }
 
         // ---- Pre-transaction sanity checks (fast fail, no lock needed) ----
         $student = $this->studentRepo->find($studentId);
         if (!$student) {
-            throw new NotFoundException('Student');
+            throw new NotFoundException('الطالب');
         }
 
         $studentUser = $this->userRepo->find($studentUserId);
         if (!$studentUser || !$this->isActiveUser($studentUser)) {
-            throw new BusinessException('Student account is not active', 'STUDENT_INACTIVE');
+            throw new BusinessException(
+                'حساب الطالب غير نشط.',
+                'STUDENT_INACTIVE'
+            );
         }
 
         $lecture = $this->lectureRepo->find($lectureId);
@@ -363,7 +386,7 @@ class CouponService
         }
         if ((bool)$lecture['is_free']) {
             throw new BusinessException(
-                'This lecture is free and does not require a coupon',
+                'هذه المحاضرة مجانية ولا تحتاج إلى كوبون.',
                 'LECTURE_FREE'
             );
         }
@@ -383,23 +406,38 @@ class CouponService
             $coupon = $this->couponRepo->findByCodeForUpdate($code);
 
             if (!$coupon) {
-                throw new BusinessException('Invalid coupon code', 'COUPON_NOT_FOUND');
+                throw new BusinessException(
+                    'كود الكوبون غير صالح.',
+                    'COUPON_NOT_FOUND'
+                );
             }
 
             if ((int) $coupon['lecture_id'] !== $lectureId) {
-                throw new BusinessException('This coupon does not belong to the requested lecture', 'COUPON_LECTURE_MISMATCH');
+                throw new BusinessException(
+                    'هذا الكوبون لا يخص المحاضرة المطلوبة.',
+                    'COUPON_LECTURE_MISMATCH'
+                );
             }
 
             if (!(bool) $coupon['is_active']) {
-                throw new BusinessException('This coupon is not active', 'COUPON_INACTIVE');
+                throw new BusinessException(
+                    'هذا الكوبون غير مفعل.',
+                    'COUPON_INACTIVE'
+                );
             }
 
             if ($coupon['expire_at'] !== null && strtotime($coupon['expire_at']) < time()) {
-                throw new BusinessException('This coupon has expired', 'COUPON_EXPIRED');
+                throw new BusinessException(
+                    'انتهت صلاحية هذا الكوبون.',
+                    'COUPON_EXPIRED'
+                );
             }
 
             if ((int) $coupon['times_used'] >= (int) $coupon['max_uses']) {
-                throw new BusinessException('This coupon has reached its usage limit', 'COUPON_USES_EXHAUSTED');
+                throw new BusinessException(
+                    'انتهت صلاحية هذا الكوبون.',
+                    'COUPON_EXPIRED'
+                );
             }
 
             // Re-check ownership under lock — closes the race window
@@ -407,7 +445,10 @@ class CouponService
             // same time.
             $existingOwnership = $this->ownershipRepo->findByStudentAndLectureForUpdate($studentId, $lectureId);
             if ($existingOwnership !== null) {
-                throw new BusinessException('You already own this lecture', 'ALREADY_OWNED');
+                throw new BusinessException(
+                    'لقد قمت بشراء هذه المحاضرة مسبقًا.',
+                    'ALREADY_OWNED'
+                );
             }
 
             $this->couponRepo->incrementTimesUsed((int) $coupon['id']);
@@ -446,13 +487,13 @@ class CouponService
             'ownership_id' => $ownershipId,
         ]);
 
-        return [ 
+        return [
             'lecture_id' => $lectureId,
             'lecture_name' => $lecture['title'],
             'youtube_url' => $lecture['youtube_url'],
 
             'purchase_price' => $lecture['price'],
-            'purchased_at' => date('c'),  
+            'purchased_at' => date('c'),
             'ownership_id' => $ownershipId,
         ];
     }
@@ -500,15 +541,21 @@ class CouponService
     private function assertCodeIsUsable(string $code): void
     {
         if (strlen($code) < CouponConstants::CODE_MIN_LENGTH || strlen($code) > CouponConstants::CODE_MAX_LENGTH) {
-            throw new ValidationException(['code' => 'Coupon code must be between ' . CouponConstants::CODE_MIN_LENGTH . ' and ' . CouponConstants::CODE_MAX_LENGTH . ' characters']);
+            throw new ValidationException([
+                'code' => 'يجب أن يتراوح طول كود الكوبون بين ' . CouponConstants::CODE_MIN_LENGTH . ' و ' . CouponConstants::CODE_MAX_LENGTH . ' حرفًا.'
+            ]);
         }
 
         if (!preg_match(CouponConstants::CODE_PATTERN, $code)) {
-            throw new ValidationException(['code' => 'Coupon code may only contain uppercase letters, numbers, and dashes']);
+            throw new ValidationException([
+                'code' => 'يجب أن يحتوي كود الكوبون على أحرف إنجليزية كبيرة وأرقام وشرطات (-) فقط.'
+            ]);
         }
 
         if ($this->couponRepo->codeExists($code)) {
-            throw new ValidationException(['code' => 'Coupon code already exists']);
+            throw new ValidationException([
+                'code' => 'كود الكوبون مستخدم بالفعل.'
+            ]);
         }
     }
 
@@ -541,7 +588,7 @@ class CouponService
     {
         $isExpiredByDate = $coupon['expire_at'] !== null && strtotime($coupon['expire_at']) < time();
         $isExpiredByUsage = (int) $coupon['times_used'] >= (int) $coupon['max_uses'];
- 
+
         return [
             'id' => (int) $coupon['id'],
             'lecture_id' => (int) $coupon['lecture_id'],
@@ -560,5 +607,6 @@ class CouponService
             'created_at' => $coupon['created_at'],
             'updated_at' => $coupon['updated_at'],
         ];
-    } 
-} 
+    }
+}
+ 

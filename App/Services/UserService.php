@@ -35,16 +35,16 @@ class UserService
             'full_name' => $data['full_name'],
             'email' => $data['email'],
             'password_hash' =>
-             $this->hashPassword($data['password_hash']),
+            $this->hashPassword($data['password_hash']),
             'role_id' => $role,
             'is_active' => $data['is_active'] ?? 1,
         ];
- 
+
         $id = $this->userRepo->create($userData);
 
         $this->logger->info("New user created", ['id' => $id, 'email' => $data['email'], 'role' => $role]);
- 
-        return $this->getUser($id); 
+
+        return $this->getUser($id);
     }
 
     public function getUser(int $id): array
@@ -52,10 +52,44 @@ class UserService
         $user = $this->userRepo->find($id);
 
         if (!$user) {
-            throw new NotFoundException("User");
+            throw new NotFoundException("un define user");
         }
 
-        return $this->hideSensitive($user);
+        return    [
+            'user' => [
+                'id' => $user['id'],
+                'full_name' => $user['full_name'],
+                'email' => $user['email'],
+                'phone' => $user['phone'],
+                'is_active' => $user['is_active'],
+                'created_at' => $user['created_at'],
+                'updated_at' => $user['updated_at'],
+
+                'role' => [
+                    'id' => $user['role_id'],
+                    'code' => $user['role_name']
+                ]
+            ],
+
+            'student' => $user['student_id']
+                ? [
+                    'id' => $user['student_id'],
+                     'average_score' => (float) $user['average_score'],
+                    'total_quizzes' => (int) $user['total_quizzes'],
+                    'total_degrees' => (int) $user['total_degrees'],
+                    'total_lectures' => (int) $user['total_lectures'],
+                    'created_at' => $user['student_created_at'],
+                    'updated_at' => $user['student_updated_at'],
+
+                    'stage' => [
+                        'id' => $user['stage_id'],
+                        'name' => $user['stage_name'],
+                    ],
+                ]
+
+                : null, 
+
+        ];
     }
 
     public function getUserRaw(int $id): array
