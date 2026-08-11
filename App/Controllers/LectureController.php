@@ -169,6 +169,9 @@ class LectureController
             $validator->validateBoolean('is_free', false);
         }
 
+         if (isset($requestData['max_views'])) {
+            $validator->validateNumber('max_views', 0);
+        }
         if ($validator->hasErrors()) {
             throw new ValidationException($validator->getErrors());
         }
@@ -266,6 +269,7 @@ class LectureController
             'order_number',
             'price',
             'is_free',
+            'max_views',
         ];
 
         $payload = [];
@@ -273,7 +277,7 @@ class LectureController
         foreach ($fields as $field) {
             if (array_key_exists($field, $requestData) && $requestData[$field] !== '') {
                 $payload[$field] = $requestData[$field];
-            }
+            } 
         }
 
         // title/description need HTML-safe sanitization; numeric/bool fields are cast, not stripped.
@@ -308,7 +312,7 @@ class LectureController
 
     private function isAdmin(): bool
     {
-        return ($_SERVER['auth_role'] ?? null) === self::ADMIN_ROLE_ID;
+        return ($_SERVER['auth_role'] ?? null) == self::ADMIN_ROLE_ID;
     }
 
     private function getAuthUserId(): int

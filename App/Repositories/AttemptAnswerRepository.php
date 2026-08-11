@@ -75,6 +75,8 @@ class AttemptAnswerRepository implements AttemptAnswerRepositoryInterface
                 qq.question_text, qq.marks, qq.type, qq.order_number,
                 qa.student_id, s.full_name AS student_name, s.student_id_display,
                 q.headline AS quiz_name
+                            q.duration_seconds,
+
              FROM quiz_attempt_answers qaa
              INNER JOIN quiz_questions qq ON qq.id = qaa.question_id
              INNER JOIN quiz_attempts qa ON qa.id = qaa.attempt_id
@@ -109,7 +111,21 @@ class AttemptAnswerRepository implements AttemptAnswerRepositoryInterface
 
         return $count;
     }
+    // Add to AttemptRepositoryInterface and AttemptRepository:
 
+    public function findExpiredInProgress(int $limit = 200): array
+    {
+        return $this->db->query(
+            "SELECT qa.id, qa.quiz_id, qa.student_id, qa.started_at, q.duration_seconds
+         FROM quiz_attempts qa
+         INNER JOIN quizzes q ON q.id = qa.quiz_id
+         WHERE qa.status = 'in_progress'
+           AND qa.deleted_at IS NULL
+           AND TIMESTAMPDIFF(SECOND, qa.started_at, UTC_TIMESTAMP()) >= q.duration_seconds
+         LIMIT ?",
+            [$limit]
+        );
+    }
     public function softDelete(int $id): int
     {
         // Rarely used — typically you don't delete answers, just un-review them.

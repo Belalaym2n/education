@@ -21,7 +21,7 @@ class AttemptService
     private Database $db;
     private Logger $logger;
 
-    public function __construct(
+     public function __construct(
         AttemptRepositoryInterface $attemptRepo,
         AttemptAnswerRepositoryInterface $answerRepo,
         QuizRepositoryInterface $quizRepo,
@@ -51,6 +51,8 @@ class AttemptService
         if (!$availability->isVisibleToStudents || $availability->state !== 'live') {
             throw new ForbiddenException('This quiz is not available right now.');
         }
+
+        $durationSeconds = (int) ($quiz['duration_seconds'] ?? 0);
 
         // Lock the student's attempt rows for this quiz to serialize
         // concurrent "start" calls (double-tap, retry-on-timeout, etc).
@@ -449,9 +451,9 @@ class AttemptService
         $now = time();
         $elapsed = max(0, $now - $startedAt);
         $remaining = max(0, $duration - $elapsed);
-
-        $attempt['duration_seconds'] = $duration;
-        $attempt['remaining_seconds'] = $remaining;
+$attempt['duration_seconds'] = $duration;
+$attempt['duration_minutes'] = (int) ceil($duration / 60);
+          $attempt['remaining_seconds'] = $remaining;
         $attempt['server_time'] = gmdate('Y-m-d\TH:i:s\Z', $now);
         $attempt['expires_at'] = gmdate('Y-m-d\TH:i:s\Z', $startedAt + $duration);
 
@@ -493,4 +495,35 @@ class AttemptService
         }
         return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     }
+
+    public function getLatestResultForQuiz(int $quizId, int $studentId): array
+{
+    // Make sure the quiz exists.
+    $quiz = $this->quizRepo->find($quizId);
+
+    if (!$quiz) {
+        throw new NotFoundException('Quiz');
+    }
+
+    // Find the latest completed attempt for this student.
+    $attempt = $this->attemptRepo->findLatestByQuizAndStudent(
+        $quizId,
+        $studentId
+    );
+
+    if (!$attempt) {
+        throw new NotFoundException('Quiz result');
+    }
+
+    // Reuse the existing result logic.
+    // This handles:
+    // - ownership
+    // - result visibility
+    // - essay visibility
+    // - answers
+    return $this->getResultsForStudent(
+        (int) $attempt['id'],
+        $studentId
+    );
+}
 } 

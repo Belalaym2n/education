@@ -464,6 +464,8 @@ class CouponService
                 'purchase_price' => $lecture['price'],
                 'purchased_at' => date('Y-m-d H:i:s'),
             ]);
+$this->ownershipRepo->incrementViewCount( $studentId, $lectureId ,$lecture["max_views"]);
+            $this->studentRepo->incrementTotalLectures($studentId); 
 
             $this->db->commit();
         } catch (\Throwable $e) {
@@ -608,5 +610,109 @@ class CouponService
             'updated_at' => $coupon['updated_at'],
         ];
     }
+
+ public function checkLectureAccess(
+    int $studentId,
+    int $lectureId
+): array {
+    $lecture = $this->lectureRepo->find($lectureId);
+
+    if (!$lecture) {
+        throw new NotFoundException('Lecture');
+    }
+
+    $ownership = $this->ownershipRepo->findByStudentAndLecture(
+        $studentId,
+        $lectureId
+    );
+
+    if (!$ownership) {
+        throw new BusinessException(
+            'أنت لا تملك هذه المحاضرة.',
+            'LECTURE_NOT_OWNED'
+        );
+    }
+
+    $viewCount = (int) ($ownership['view_count'] ?? 0);
+
+    $maxViews = (int) ($lecture['max_views'] ?? 0);
+
+    /*
+     * max_views <= 0 means unlimited views.
+     */
+    if ($maxViews <= 0) {
+        return [
+            'lecture_id' => $lectureId,
+            'allowed' => true,
+            'view_count' => $viewCount,
+            'max_views' => null,
+            'remaining_views' => null,
+            'unlimited' => true,
+        ];
+    }
+
+    /*
+     * Student already reached the maximum number of views.
+     */
+    if ($viewCount >= $maxViews) {
+        return [
+            'lecture_id' => $lectureId,
+            'allowed' => false,
+            'view_count' => $viewCount,
+            'max_views' => $maxViews, 
+            'remaining_views' => 0,
+            'unlimited' => false,
+        ];
+    }
+
+    /*
+     * Student is allowed to watch.
+     * Consume one view.
+     */
+    $updated = $this->ownershipRepo->incrementViewCount(
+        $studentId,
+        $lectureId,
+        $maxViews
+    );
+
+    /*
+     * Safety check in case another request consumed
+     * the last available view concurrently.
+     */
+    if (!$updated) {
+        return [
+            'lecture_id' => $lectureId,
+            'allowed' => false,
+            'view_count' => $viewCount,
+            'max_views' => $maxViews,
+            'remaining_views' => 0,
+            'unlimited' => false,
+        ];
+    }
+
+    /*
+     * Get the updated ownership so the response
+     * contains the new view_count.
+     */
+    $updatedOwnership = $this->ownershipRepo->findByStudentAndLecture(
+        $studentId,
+        $lectureId
+    );
+
+    $newViewCount = (int) ($updatedOwnership['view_count'] ?? ($viewCount + 1));
+
+    return [
+        'lecture_id' => $lectureId,
+        'allowed' => true,
+        'view_count' => $newViewCount,
+        'max_views' => $maxViews,
+        'remaining_views' => max(
+            0,
+            $maxViews - $newViewCount
+        ),
+        'unlimited' => false,
+    ];
+}
+ 
 }
  

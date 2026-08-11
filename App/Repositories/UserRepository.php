@@ -31,6 +31,7 @@ class UserRepository implements UserRepositoryInterface
             s.parent_phone,
             s.profile_image,
             s.enrollment_date,
+              s.qr_code,
             s.average_score,
             s.total_quizzes,
             s.total_degrees,

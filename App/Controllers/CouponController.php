@@ -263,6 +263,24 @@ class CouponController
 
         return (int) $student['student_id'];
     }  
-    // ===================== STUDENT ===================== (unchanged, keep as-is)
-}
+
+ 
+public function checkLectureAccess(int $lectureId): array
+{
+          $authUserId = (int) ($_SERVER['auth_user_id'] ?? 0);
+        $studentId = $this->resolveStudentId($authUserId);
+    $result = $this->couponService->checkLectureAccess(
+        $studentId,
+        $lectureId
+    );
+
+    return [
+        'success' => true,
+        'data' => $result,
+    ];
+} 
+ 
+ 
+ 
+ }
  

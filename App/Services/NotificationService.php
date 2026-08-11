@@ -21,9 +21,10 @@ use App\Exceptions\ValidationException;
  * dispatch orchestration (delegating actual push delivery to FirebaseService),
  * and lifecycle (enable/disable/soft-delete/restore/bulk actions).
  *
- * Controllers and other services (e.g. the lecture-creation flow) call
- * this single entry point — there is exactly one place that knows how
- * to "create + target + send" a notification.
+ * Controllers and other services (e.g. lecture creation, attendance scanning,
+ * the admin "notify parents" dashboard action) all call this single entry
+ * point — there is exactly one place that knows how to "create + target + send"
+ * a notification, including parent-targeted ones.
  */
 final class NotificationService
 {
@@ -55,10 +56,10 @@ final class NotificationService
         $this->student = $student;
         $this->stageInterFace = $stageInterFace;
 
-        $this->logger = $logger; 
+        $this->logger = $logger;
     }
 
- 
+
     /**
      * Creates a notification from validated admin input and, if `send_now`
      * is true (or a scheduled time has already passed), dispatches it.
@@ -66,17 +67,26 @@ final class NotificationService
     public function createNotification(array $data, int $createdBy): array
     {
         $this->assertValidTargeting($data);
-
+ 
         $data['created_by'] = $createdBy;
         $data['is_active'] = $data['is_active'] ?? true;
         $data['send_now'] = $data['send_now'] ?? true;
         $data['notification_type'] = $data['notification_type'] ?? NotificationType::SYSTEM;
 
-        $this->db->beginTransaction();
+$startedTransaction = false;
+
+if (!$this->db->inTransaction()) {
+    $this->db->beginTransaction();
+    $startedTransaction = true;
+}
+
 
         try {
-            $id = $this->notificationRepo->create($data);
-            $this->db->commit();
+    $id = $this->notificationRepo->create($data);
+
+if ($startedTransaction) {
+    $this->db->commit();
+}
         } catch (\Throwable $e) {
             $this->db->rollBack();
             $this->logger->error('Notification creation failed', ['error' => $e->getMessage()]);
@@ -115,6 +125,39 @@ final class NotificationService
         ], $createdBy);
     }
 
+    /**
+     * Reusable entry point for the attendance flow (single scan and each
+     * batched group of a bulk scan). Never a student recipient — parents only.
+     *
+     * @param int[] $studentIds one or more students whose guardian(s) should be notified
+     */
+    public function notifyParentsOfStudents(array $studentIds, string $headline, string $body, int $createdBy): array
+    {
+        return $this->createNotification([
+            'headline' => $headline,
+            'body' => $body,
+            'target_type' => NotificationTargetType::PARENT,
+            'target_student_ids' => array_values(array_unique(array_map('intval', $studentIds))),
+            'notification_type' => NotificationType::ATTENDANCE,
+            'source_type' => 'attendance',
+            'send_now' => true,
+        ], $createdBy);
+    }
+
+    /**
+     * Admin dashboard: broadcast to every parent/guardian account.
+     */
+    public function notifyAllParents(string $headline, string $body, int $createdBy): array
+    {
+        return $this->createNotification([
+            'headline' => $headline,
+            'body' => $body,
+            'target_type' => NotificationTargetType::PARENT,
+            'notification_type' => NotificationType::SYSTEM,
+            'send_now' => true,
+        ], $createdBy);
+    }
+
     public function getNotification(int $id): array
     {
         $notification = $this->notificationRepo->find($id);
@@ -147,9 +190,9 @@ final class NotificationService
             }
 
             $data['updated_by'] = $updatedBy;
-            
+
             $this->notificationRepo->update($id, $data);
-        } 
+        }
 
         $this->logger->info('Notification updated', ['id' => $id, 'updated_by' => $updatedBy]);
 
@@ -286,20 +329,20 @@ final class NotificationService
         $tokens = array_column($devices, 'fcm_token');
 
         $sendResults = [];
-        // if (!empty($tokens)) {
-        //     $sendResults = $this->firebase->sendToTokens(
-        //         $tokens,
-        //         $notification['headline'] ?? $notification['title'],
-        //         $notification['body'],
-        //         ['notification_id' => (string) $notification['id'], 'deep_link' => (string) ($notification['deep_link'] ?? '')]
-        //     );
-  
-        //     foreach ($sendResults as $result) {
-        //         if (($result['invalid_token'] ?? false) === true) {
-        //             $this->deviceRepo->deactivateByToken($result['token']);
-        //         }
-        //     }
-        // } 
+        if (!empty($tokens)) {
+            $sendResults = $this->firebase->sendToTokens(
+                $tokens,
+                $notification['headline'] ?? $notification['title'],
+                $notification['body'],
+                ['notification_id' => (string) $notification['id'], 'deep_link' => (string) ($notification['deep_link'] ?? '')]
+            );
+
+            foreach ($sendResults as $result) {
+                if (($result['invalid_token'] ?? false) === true) {
+                    $this->deviceRepo->deactivateByToken($result['token']);
+                }
+            }
+        }
 
         $this->notificationRepo->markSent((int) $notification['id']);
 
@@ -318,56 +361,84 @@ final class NotificationService
         ];
     }
 
-   private function assertValidTargeting(array $data): void
-{
-    $targetType = NotificationTargetType::fromString($data['target_type'] ?? '');
+    private function assertValidTargeting(array $data): void
+    {
+        $targetType = NotificationTargetType::fromString($data['target_type'] ?? '');
 
-    switch ($targetType) {
+        switch ($targetType) {
 
-        case NotificationTargetType::ALL:
-            // Nothing to validate.
-            return;
+            case NotificationTargetType::ALL:
+                // Nothing to validate.
+                return;
 
-        case NotificationTargetType::STAGE:
+            case NotificationTargetType::STAGE:
 
-            // stage_id is required.
-            if (empty($data['stage_id'])) {
+                // stage_id is required.
+                if (empty($data['stage_id'])) {
+                    throw new ValidationException([
+                        'stage_id' => 'stage_id is required when target_type is "stage"',
+                    ]);
+                }
+
+                // Stage must exist.
+                $stage = $this->stageInterFace->find((int) $data['stage_id']);
+
+                if ($stage === null) {
+                    throw new NotFoundException('Stage not found.');
+                }
+
+                return;
+
+            case NotificationTargetType::STUDENT:
+
+                // student_id is required.
+                if (empty($data['student_id'])) {
+                    throw new ValidationException([
+                        'student_id' => 'student_id is required when target_type is "student"',
+                    ]);
+                }
+
+                // Student must exist.
+                $student = $this->student->find((int) $data['student_id']);
+
+                if ($student === null) {
+                    throw new NotFoundException('Student not found.');
+                }
+
+                return;
+
+            case NotificationTargetType::PARENT:
+
+                // Either specific students (each must exist) or nothing at
+                // all, which means "every parent in the system".
+                if (!empty($data['target_student_ids'])) {
+                    if (!is_array($data['target_student_ids'])) {
+                        throw new ValidationException([
+                            'target_student_ids' => 'target_student_ids must be an array of student IDs',
+                        ]);
+                    }
+
+                    foreach ($data['target_student_ids'] as $sid) {
+                        if ($this->student->find((int) $sid) === null) {
+                            throw new NotFoundException("Student not found: {$sid}");
+                        }
+                    }
+
+                    return;
+                }
+
+                if (!empty($data['student_id'])) {
+                    if ($this->student->find((int) $data['student_id']) === null) {
+                        throw new NotFoundException('Student not found.');
+                    }
+                }
+
+                return;
+
+            default:
                 throw new ValidationException([
-                    'stage_id' => 'stage_id is required when target_type is "stage"',
+                    'target_type' => 'Invalid target_type.',
                 ]);
-            }
-
-            // Stage must exist.
-            $stage = $this->stageInterFace->find((int) $data['stage_id']);
-
-            if ($stage === null) {
-                throw new NotFoundException('Stage not found.');
-            }
-
-            return;
-
-        case NotificationTargetType::STUDENT:
-
-            // student_id is required.
-            if (empty($data['student_id'])) {
-                throw new ValidationException([
-                    'student_id' => 'student_id is required when target_type is "student"',
-                ]);
-            }
-
-            // Student must exist.
-            $student = $this->student->find((int) $data['student_id']);
-
-            if ($student === null) {
-                throw new NotFoundException('Student not found.');
-            }
-
-            return;
-
-        default:
-            throw new ValidationException([
-                'target_type' => 'Invalid target_type.',
-            ]);
+        }
     }
 } 
-}

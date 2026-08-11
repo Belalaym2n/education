@@ -25,8 +25,10 @@ class UserService
     public function createUser(array $data): array
     {
         if ($this->userRepo->exists($data['email'])) {
-            throw new ValidationException(['email' => 'Email already exists']);
-        }
+// Line 27
+throw new ValidationException([
+    'email' => 'البريد الإلكتروني مستخدم بالفعل.'
+]);         }
 
         $role = $data['role_id'] ?? 'student';
         $this->assertValidRole($role);
@@ -52,8 +54,7 @@ class UserService
         $user = $this->userRepo->find($id);
 
         if (!$user) {
-            throw new NotFoundException("un define user");
-        }
+throw new NotFoundException("المستخدم غير موجود.");        }
 
         return    [
             'user' => [
@@ -74,7 +75,12 @@ class UserService
             'student' => $user['student_id']
                 ? [
                     'id' => $user['student_id'],
-                     'average_score' => (float) $user['average_score'],
+                                        'qr_code' => $user['qr_code'],
+
+                    'parent_phone' => $user['parent_phone'],
+                    'profile_image' => $user['profile_image'],
+                    'enrollment_date' => $user['enrollment_date'],
+                    'average_score' => (float) $user['average_score'],
                     'total_quizzes' => (int) $user['total_quizzes'],
                     'total_degrees' => (int) $user['total_degrees'],
                     'total_lectures' => (int) $user['total_lectures'],
@@ -142,8 +148,10 @@ class UserService
         $user = $this->getUserRaw($id);
 
         if (!password_verify($currentPassword, $user['password'])) {
-            throw new ValidationException(['current_password' => 'Current password is incorrect']);
-        }
+// Line 143
+throw new ValidationException([
+    'current_password' => 'كلمة المرور الحالية غير صحيحة.'
+]);        }
 
         $this->userRepo->updatePassword($id, $this->hashPassword($newPassword));
         $this->logger->info("Password changed", ['id' => $id]);
@@ -186,10 +194,12 @@ class UserService
     public function checkDuplicateEmail(string $email): void
     {
         if ($this->userRepo->exists($email)) {
-            throw new ValidationException(['email' => 'Email already exists']);
-        }
+// Line 187
+throw new ValidationException([
+    'email' => 'البريد الإلكتروني مستخدم بالفعل.'
+]);        }
     }
-
+ 
     private function assertValidRole(string $role): void
     {
         if (!in_array($role, self::ALLOWED_ROLES, true)) {

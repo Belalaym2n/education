@@ -37,6 +37,29 @@ $container->bind(AuthMiddleware::class, fn($c) => new AuthMiddleware());
 
 require __DIR__ . '/App/Routing/routes.php';
 
-$result = $router->dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
+ $method = $_SERVER['REQUEST_METHOD'];
 
-echo json_encode($result); 
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+$prefix = '/education/index.php';
+
+if (str_starts_with($uri, $prefix)) {
+    $uri = substr($uri, strlen($prefix));
+}
+
+// Make sure the API route is correctly formatted
+$uri = '/' . ltrim($uri, '/');
+
+// If api and auth got concatenated, fix it
+$uri = preg_replace(
+    '#^/api(?!/)#',
+    '/api/',
+    $uri
+);
+
+error_log('REQUEST URI: ' . $_SERVER['REQUEST_URI']);
+error_log('FINAL URI: ' . $uri);
+
+$result = $router->dispatch($method, $uri);
+
+echo json_encode($result);

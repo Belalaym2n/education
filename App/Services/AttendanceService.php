@@ -23,14 +23,14 @@ class AttendanceService
     private NotificationService $notificationService;
     private Database $db;
     private Logger $logger;
- 
+
     public function __construct(
         AttendanceRepositoryInterface $attendanceRepo,
         StudentRepositoryInterface $studentRepo,
         FatherStudentRepositoryInterface $fatherStudentRepo,
         NotificationService $notificationService,
         Database $db,
-        Logger $logger 
+        Logger $logger
     ) {
         $this->attendanceRepo = $attendanceRepo;
         $this->studentRepo = $studentRepo;
@@ -47,19 +47,14 @@ class AttendanceService
      */
     public function recordAttendance(string $qrCode, string $message, int $recordedBy): array
     {
-        $student = $this->studentRepo->
-        findByQrCode($qrCode);
+        $student = $this->studentRepo->findByQrCode($qrCode);
 
         if ($student === null) {
-            throw new NotFoundException
-            ('Invalid QR code: student not found.');
+            throw new NotFoundException('Invalid QR code: student not found.');
         }
 
         $studentId = (int) $student['id'];
-
-        $fatherUserIds = $this->
-        fatherStudentRepo->
-        findFatherUserIdsByStudentId($studentId);
+        $fatherUserIds = $this->fatherStudentRepo->findFatherUserIdsByStudentId($studentId);
 
         if (empty($fatherUserIds)) {
             throw new NotFoundException('No linked parent found for this student.');
@@ -68,22 +63,18 @@ class AttendanceService
         $this->db->beginTransaction();
 
         try {
-            // $notification = 
-            // $this->notificationService->
-            // notifyParentsOfStudenZts(
-            //     [$studentId],
-            //     'Attendance Update',
-            //     $message,
-            //     $recordedBy
-            // );
+            $notification = $this->notificationService->notifyParentsOfStudents(
+                [$studentId],
+                'Attendance Update',
+                $message,
+                $recordedBy
+            );
 
-            $attendanceId = $this->
-            attendanceRepo->create([
+            $attendanceId = $this->attendanceRepo->create([
                 'student_id' => $studentId,
-                'status' => $this->
-                inferStatus($message),
+                'status' => $this->inferStatus($message),
                 'message' => $message,
-                // 'notification_id' => $notification['id'] ?? null,
+                'notification_id' => $notification['id'] ?? null,
                 'recorded_by' => $recordedBy,
             ]);
 
@@ -97,8 +88,7 @@ class AttendanceService
         return [
             'attendance_id' => $attendanceId,
             'student_id' => $studentId,
-            'parents_notified' => 
-            count($fatherUserIds),
+            'parents_notified' => count($fatherUserIds),
         ];
     }
 
@@ -197,18 +187,14 @@ class AttendanceService
 
             foreach ($groups as $message => $groupStudentIds) {
                 try {
-                    // $notification = $this->
-                    // notificationService->
-                    // notifyParentsOfStudents(
-                    //     array_values(array_unique($groupStudentIds)),
-                    //     'Attendance Update',
-                    //     $message,
-                    //     $recordedBy
-                    // );
-                    // $notificationIdByMessage[$message] = $notification['id'] ?? null;
-             
-             
-                    } catch (\Throwable $e) {
+                    $notification = $this->notificationService->notifyParentsOfStudents(
+                        array_values(array_unique($groupStudentIds)),
+                        'Attendance Update',
+                        $message,
+                        $recordedBy
+                    );
+                    $notificationIdByMessage[$message] = $notification['id'] ?? null;
+                } catch (\Throwable $e) {
                     // Notification failed for this message-group only; the
                     // attendance rows for it are still logged, but flagged.
                     $this->logger->error('Bulk attendance notification failed', [
@@ -240,7 +226,7 @@ class AttendanceService
         }
 
         return $this->summarize($processed, $failed);
-    } 
+    }
 
     private function summarize(int $processed, array $failed): array
     {
@@ -263,6 +249,6 @@ class AttendanceService
             return 'late';
         }
 
-        return 'present';
+        return 'present'; 
     }
 }

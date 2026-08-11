@@ -140,4 +140,29 @@ class LectureOwnershipRepository implements LectureOwnershipRepositoryInterface
         $allowed = CouponConstants::ALLOWED_MY_LECTURES_SORT_FIELDS;
         return in_array($column, $allowed, true) ? $column : 'purchased_at';
     }
+
+public function incrementViewCount(
+    int $studentId,
+    int $lectureId,
+    int $maxViews
+): bool {
+    $affectedRows = $this->db->execute(
+        "
+        UPDATE lecture_ownerships
+        SET view_count = view_count + 1
+        WHERE student_id = ?
+          AND lecture_id = ?
+          AND deleted_at IS NULL
+          AND view_count < ?
+        ",
+        [
+            $studentId,
+            $lectureId,
+            $maxViews,
+        ]
+    );
+
+    return $affectedRows > 0;
+}
+ 
 }

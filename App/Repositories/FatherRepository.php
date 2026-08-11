@@ -40,7 +40,7 @@ class FatherRepository implements FatherRepositoryInterface
         $data['updated_at'] = date('Y-m-d H:i:s');
 
         return (int) $this->db->insert('fathers', $data);
-    }
+    } 
 
     public function delete(int $id): int
     {

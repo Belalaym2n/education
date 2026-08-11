@@ -6,7 +6,7 @@ use App\Contracts\LectureRepositoryInterface;
 use App\Database\Database;
 
 class LectureRepository implements LectureRepositoryInterface
-{
+{ 
     private Database $db;
     public function getNextOrderNumber(int $stageId): int
     {
@@ -43,7 +43,7 @@ class LectureRepository implements LectureRepositoryInterface
             [$id]
         );
     }
-
+ 
     public function findWithTrashed(int $id): ?array
     {
         return $this->db->selectOne(
@@ -222,4 +222,4 @@ class LectureRepository implements LectureRepositoryInterface
         );
     }
 }
- 
+  

@@ -97,7 +97,7 @@ class StudentService
             $fatherEmail = $this->generateFatherEmail($userId);
 
             $fatherUserId = $this->userRepo->create([
-                'full_name' => $data['full_name'] . ' - Guardian',
+                'full_name' => $data['full_name'].'- Father',
                 'email' => $fatherEmail,
                 'phone' => $data['parent_phone'],
                 'password_hash' => $passwordHash,
@@ -163,7 +163,7 @@ class StudentService
      */
     private function generateFatherEmail(int $studentUserId): string
     {
-        $prefix = Config::get('father.email_prefix') ?: 'platform';
+        $prefix = Config::get('father.email_prefix') ?: 'gamal-educ';
 
         return $prefix . $studentUserId . '@gmail.com';
     }

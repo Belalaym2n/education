@@ -39,7 +39,7 @@ class AttemptRepository implements AttemptRepositoryInterface
             [$quizId, $studentId]
         );
     }
-
+ 
     public function allForQuizAndStudent(int $quizId, int $studentId): array
     {
         return $this->db->query(
@@ -64,25 +64,59 @@ class AttemptRepository implements AttemptRepositoryInterface
         $limit = max(1, min(500, (int) $limit));
         $offset = max(0, (int) $offset);
 
-        $sql = "
-            SELECT
-                qa.id, qa.quiz_id, qa.student_id, qa.attempt_number, qa.status,
-                qa.started_at, qa.finished_at, qa.duration_used_seconds,
-                qa.mcq_score, qa.essay_score, qa.total_score, qa.percentage, qa.is_passed,
-                qa.review_status, qa.result_visible_at, qa.essay_published_at,
-                s.full_name AS student_name, s.student_id_display,
-                (SELECT COUNT(*) FROM quiz_attempt_answers qaa
-                    WHERE qaa.attempt_id = qa.id AND qaa.reviewed_at IS NOT NULL) AS reviewed_count,
-                (SELECT COUNT(*) FROM quiz_attempt_answers qaa
-                    WHERE qaa.attempt_id = qa.id AND qaa.question_id IN
-                        (SELECT id FROM quiz_questions WHERE type = 'essay' AND deleted_at IS NULL)
-                        AND qaa.reviewed_at IS NULL) AS pending_essay_count
-            FROM quiz_attempts qa
-            INNER JOIN students s ON s.id = qa.student_id
-            WHERE {$where}
-            ORDER BY {$sort} {$order}
-            LIMIT {$limit} OFFSET {$offset}
-        ";
+  $sql = "
+    SELECT
+        qa.id,
+        qa.quiz_id,
+        qa.student_id,
+        qa.attempt_number,
+        qa.status,
+        qa.started_at,
+        qa.finished_at,
+        qa.duration_used_seconds,
+        qa.mcq_score,
+        qa.essay_score,
+        qa.total_score,
+        qa.percentage,
+        qa.is_passed,
+        qa.review_status,
+        qa.result_visible_at,
+        qa.essay_published_at,
+
+        u.full_name AS student_name,
+
+        (SELECT COUNT(*)
+         FROM quiz_attempt_answers qaa
+         WHERE qaa.attempt_id = qa.id
+           AND qaa.reviewed_at IS NOT NULL
+        ) AS reviewed_count,
+
+        (SELECT COUNT(*)
+         FROM quiz_attempt_answers qaa
+         WHERE qaa.attempt_id = qa.id
+           AND qaa.question_id IN (
+               SELECT id
+               FROM quiz_questions
+               WHERE type = 'essay'
+                 AND deleted_at IS NULL
+           )
+           AND qaa.reviewed_at IS NULL
+        ) AS pending_essay_count
+
+    FROM quiz_attempts qa
+
+    INNER JOIN students s
+        ON s.id = qa.student_id
+
+    INNER JOIN users u
+        ON u.id = s.user_id
+
+    WHERE {$where}
+
+    ORDER BY {$sort} {$order}
+
+    LIMIT {$limit} OFFSET {$offset}
+";
 
         return $this->db->query($sql, $params);
     }
@@ -355,48 +389,7 @@ class AttemptRepository implements AttemptRepositoryInterface
         ], 'id = ?', [$studentId]);
     }
 
-    private function gradeObjectiveAnswer(array $answer): bool
-    {
-        $type = $answer['type'];
-        $selectedChoiceIds = !empty($answer['selected_choice_ids'])
-            ? json_decode($answer['selected_choice_ids'], true)
-            : [];
-
-        if (!is_array($selectedChoiceIds)) {
-            $selectedChoiceIds = [];
-        }
-
-        $correctChoices = $this->db->query(
-            "SELECT id FROM quiz_question_choices WHERE question_id = ? AND is_correct = 1 ORDER BY id",
-            [$answer['question_id']]
-        );
-
-        $correctIds = array_map(fn($c) => (int) $c['id'], $correctChoices);
-
-        if ($type === 'mcq' || $type === 'true_false') {
-            // Exactly one correct answer must be selected.
-            return count($selectedChoiceIds) === 1 && in_array((int) $selectedChoiceIds[0], $correctIds, true);
-        }
-
-        if ($type === 'multi_select') {
-            // All correct answers must be selected, no incorrect answers.
-            $selectedSet = array_map('intval', $selectedChoiceIds);
-            sort($selectedSet);
-            sort($correctIds);
-            return $selectedSet === $correctIds;
-        }
-
-        if ($type === 'image_choice') {
-            // Same as MCQ — one correct image.
-            return count($selectedChoiceIds) === 1 && in_array((int) $selectedChoiceIds[0], $correctIds, true);
-        }
-
-        // fill_blank, matching, ordering, numeric are graded by fuzzy matching
-        // logic in the grading service, not here — those answers stay null
-        // until a teacher explicitly grades them.
-
-        return false;
-    }
+   
 
     private function buildWhere(int $quizId, array $filters): array
     {

@@ -28,9 +28,7 @@ class AuthMiddleware
 
         // بتتخزن عشان الـ Middlewares والـ Controllers اللي جاية تقدر تستخدمها
         $_SERVER['auth_user_id'] = $payload['user_id'];
-if (isset($payload['student_id'])) {
-    $_SERVER['auth_studetn_id'] = $payload['student_id'];
-}
+if (isset($payload['student_id'])) { $_SERVER['auth_student_id'] = (int) $payload['student_id']; }
         $_SERVER['auth_role'] = $payload['role_id'];
         $_SERVER['auth_email'] = $payload['email'] ?? null;
     }

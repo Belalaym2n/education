@@ -345,14 +345,14 @@ $container->bind(AttemptService::class, function ($c) {
     );
 });
 
-// $container->bind(EssayReviewService::class, function ($c) {
-//     return new EssayReviewService(
-//         $c->make(AttemptRepositoryInterface::class),
-//         $c->make(AttemptAnswerRepositoryInterface::class),
-//         $c->make(Database::class),
-//         $c->make(Logger::class),
-//     );
-// });
+$container->bind(EssayReviewService::class, function ($c) {
+    return new EssayReviewService(
+        $c->make(AttemptRepositoryInterface::class),
+        $c->make(AttemptAnswerRepositoryInterface::class),
+        $c->make(Database::class),
+        $c->make(Logger::class),
+    );
+});
 
 $container->bind(ResultsService::class, function ($c) {
     return new ResultsService(
@@ -366,11 +366,11 @@ $container->bind(AttemptController::class, function ($c) {
     return new AttemptController($c->make(AttemptService::class));
 });
 
-// $container->bind(ResultsController::class, function ($c) {
-//     return new ResultsController(
-//         $c->make(ResultsService::class),
-//         $c->make(EssayReviewService::class),
-//     );
-// });
+$container->bind(ResultsController::class, function ($c) {
+    return new ResultsController(
+        $c->make(ResultsService::class),
+        $c->make(EssayReviewService::class),
+    );
+});
 
 return $container;

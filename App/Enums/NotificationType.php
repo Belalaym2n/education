@@ -9,13 +9,15 @@ final class NotificationType
     public const PROMOTIONAL = 'promotional';
     public const EDUCATIONAL = 'educational';
     public const WARNING = 'warning';
+    public const ATTENDANCE = 'attendance'; 
 
     public static function fromString(string $value): string
     {
-        $allowed = [
+        $allowed = [ 
             self::SYSTEM,
             self::LECTURE,
             self::PROMOTIONAL,
+              self::ATTENDANCE,
             self::EDUCATIONAL,
             self::WARNING,
         ]; 

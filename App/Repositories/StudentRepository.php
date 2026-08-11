@@ -230,5 +230,17 @@ return $this->db->update(
         ); 
     }
  
+    public function incrementTotalLectures(int $studentId): void
+{
+    $sql = "
+        UPDATE students
+        SET total_lectures = COALESCE(total_lectures, 0) + 1
+        WHERE id = :student_id
+    ";
+
+    $this->db->execute($sql, [
+        'student_id' => $studentId,
+    ]);
+} 
 }
  

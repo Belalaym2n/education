@@ -16,6 +16,8 @@ interface AttemptRepositoryInterface
      * Paginated list for the Results Dashboard — filters by quiz + review status +
      * visibility. Includes answer counts per student for the "Pending/Completed" view.
      */
+
+    // public function findExpiredInProgress(int $limit = 200): array;
     public function paginate(
         int $quizId,
         array $filters,

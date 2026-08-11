@@ -80,8 +80,11 @@ class EssayReviewService
         }
 
         if ($marksAwarded > (float) $answer['marks']) {
-            throw new ValidationException(['marks_awarded' => "Marks awarded cannot exceed the question's total marks ({$answer['marks']}).']);
-        }
+throw new ValidationException([
+    'marks_awarded' => "Marks awarded cannot exceed the question's total marks (" .
+        $answer['marks'] .
+        ")."
+]);        }
 
         $update = [
             'marks_awarded' => $marksAwarded,

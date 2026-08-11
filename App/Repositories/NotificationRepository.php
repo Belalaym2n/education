@@ -12,17 +12,16 @@ use App\DTO\NotificationFilter;
  */
 final class NotificationRepository implements NotificationRepositoryInterface
 {
- 
-
 
     private const TABLE = 'notifications';
 
     private Database $db;
-  
-     public function __construct(Database $db)
+
+    public function __construct(Database $db)
     {
         $this->db = $db;
     }
+
     public function find(
         int $id,
         bool $includeDeleted = false
@@ -119,12 +118,32 @@ final class NotificationRepository implements NotificationRepositoryInterface
 
     public function create(array $data): int
     {
+        $data = $this->encodeJsonColumns($data);
+
         return (int) $this->db->insert(self::TABLE, $data);
     }
 
     public function update(int $id, array $data): int
     {
+        $data = $this->encodeJsonColumns($data);
+
         return $this->db->update(self::TABLE, $data, 'id = ?', [$id]);
+    }
+
+    /**
+     * `target_student_ids` is a JSON column; the repository is the only
+     * layer that knows the storage representation, so services can just
+     * pass a plain PHP array.
+     */
+    private function encodeJsonColumns(array $data): array
+    {
+        if (array_key_exists('target_student_ids', $data) && is_array($data['target_student_ids'])) {
+            $data['target_student_ids'] = empty($data['target_student_ids'])
+                ? null
+                : json_encode(array_values(array_map('intval', $data['target_student_ids'])));
+        }
+
+        return $data;
     }
 
     public function softDelete(int $id): int
@@ -170,10 +189,9 @@ final class NotificationRepository implements NotificationRepositoryInterface
         $params = array_merge(array_values($data), $ids);
 
         $sql = "UPDATE " . self::TABLE . " SET $set WHERE id IN ($placeholders)";
-        $rows = $this->db->query($sql, $params);
+        $this->db->query($sql, $params);
 
-        // Database::query() runs SELECTs typically; use a raw statement instead for UPDATE with dynamic IN().
-        return $this->db->update(self::TABLE, [], 'id = ?', []) !== null ? count($ids) : count($ids);
+        return count($ids);
     }
 
     public function markSent(int $id): int
@@ -191,7 +209,9 @@ final class NotificationRepository implements NotificationRepositoryInterface
         } elseif ($targetType === 'stage') {
             $sql = "SELECT s.user_id FROM students s WHERE s.deleted_at IS NULL AND s.stage_id = ?";
             $rows = $this->db->query($sql, [(int) $notification['stage_id']]);
-        } else { // 'student' — future: single student target via notification.student_id
+        } elseif ($targetType === 'parent') {
+            $rows = $this->resolveParentRecipients($notification);
+        } else { // 'student' — single student target via notification.student_id
             $studentId = $notification['student_id'] ?? null;
             if ($studentId === null) {
                 return [];
@@ -202,4 +222,46 @@ final class NotificationRepository implements NotificationRepositoryInterface
 
         return array_map(fn($row) => (int) $row['user_id'], $rows);
     }
-}
+
+    /**
+     * target_type = 'parent':
+     *  - target_student_ids (JSON array) present -> parents of exactly those students
+     *  - else student_id present               -> parent(s) of that one student
+     *  - else                                    -> every parent/guardian in the system
+     */
+    private function resolveParentRecipients(array $notification): array
+    {
+        $studentIds = [];
+
+        if (!empty($notification['target_student_ids'])) {
+            $decoded = json_decode($notification['target_student_ids'], true);
+            $studentIds = is_array($decoded) ? array_map('intval', $decoded) : [];
+        } elseif (!empty($notification['student_id'])) {
+            $studentIds = [(int) $notification['student_id']];
+        }
+
+        if (!empty($studentIds)) {
+            $placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+
+            return $this->db->query(
+                "
+                SELECT DISTINCT f.user_id
+                FROM father_student fs
+                INNER JOIN fathers f ON f.id = fs.father_id AND f.deleted_at IS NULL
+                WHERE fs.student_id IN ($placeholders)
+                ",
+                $studentIds
+            );
+        }
+
+        // No student filter at all -> every active guardian account.
+        return $this->db->query(
+            "
+            SELECT u.id AS user_id
+            FROM users u
+            INNER JOIN fathers f ON f.user_id = u.id AND f.deleted_at IS NULL
+            WHERE u.deleted_at IS NULL AND u.is_active = 1
+            "
+        );
+    }
+} 

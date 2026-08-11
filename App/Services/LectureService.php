@@ -63,7 +63,8 @@ class LectureService
             'is_published'     => 1,
             'published_at'     => null,
             'created_by'       => $createdBy,
- 
+             'max_views'    => $data['max_views'] ?? 2,
+
         ];
 
         $id = $this->lectureRepo->create($payload);
@@ -102,6 +103,7 @@ class LectureService
             'youtube_url',
             'thumbnail_url',
             'duration_seconds',
+                'max_views',
             'order_number',
             'price',
             'is_free',

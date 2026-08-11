@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Exceptions\ValidationException;
+use App\Exceptions\ForbiddenException;
 use App\Services\AttemptService;
 
 class AttemptController
@@ -14,11 +15,21 @@ class AttemptController
         $this->attemptService = $attemptService;
     }
 
-    // POST /quizzes/{quizId}/attempts  — start or resume an attempt
+
+    
+    private function currentStudentId(): int
+    {
+        $id = (int) ($_SERVER['auth_student_id'] ?? 0);
+        if ($id <= 0) {
+            throw new ForbiddenException('Authentication required.');
+        }
+        return $id;
+    }
+
+    // POST /quizzes/{quizId}/attempts
     public function start(int $quizId): array
     {
-        $studentId = (int) ($_SERVER['auth_studetn_id'] ?? 0);
-
+        $studentId = $this->currentStudentId();
 
         return [
             'success' => true,
@@ -27,23 +38,25 @@ class AttemptController
         ];
     }
 
-    // GET /attempts/{attemptId}  — get current state of an attempt (resume)
+    // GET /attempts/{attemptId}
     public function show(int $attemptId): array
     {
+        $studentId = $this->currentStudentId();
+
         return [
             'success' => true,
             'message' => 'Attempt loaded',
-            'data' => $this->attemptService->getAttempt($attemptId),
+            'data' => $this->attemptService->getAttempt($attemptId, $studentId),
         ];
     }
 
-    // PUT /attempts/{attemptId}/answers/{questionId}  — save an answer (auto-save)
+    // PUT /attempts/{attemptId}/answers/{questionId}
     public function saveAnswer(int $attemptId, int $questionId, array $requestData): array
     {
+        $studentId = $this->currentStudentId();
+
         $validator = new \App\Validators\Validator($requestData);
 
-
-        // At least one field must be set.
         $hasAnswer = array_key_exists('selected_choice_ids', $requestData)
             || array_key_exists('answer_text', $requestData)
             || array_key_exists('answer_image_url', $requestData);
@@ -60,6 +73,10 @@ class AttemptController
             $validator->validateURL('answer_image_url');
         }
 
+        if (isset($requestData['selected_choice_ids']) && !is_array($requestData['selected_choice_ids'])) {
+            $validator->addError('selected_choice_ids', 'Must be an array.');
+        }
+
         if ($validator->hasErrors()) {
             throw new ValidationException($validator->getErrors());
         }
@@ -67,42 +84,58 @@ class AttemptController
         return [
             'success' => true,
             'message' => 'Answer saved',
-            'data' => $this->attemptService->saveAnswer($attemptId, $questionId, $requestData),
+            'data' => $this->attemptService->saveAnswer($attemptId, $questionId, $requestData, $studentId),
         ];
     }
 
-    // POST /attempts/{attemptId}/submit  — submit the entire attempt
+    // POST /attempts/{attemptId}/submit
     public function submit(int $attemptId): array
     {
+        $studentId = $this->currentStudentId();
+
         return [
             'success' => true,
             'message' => 'Attempt submitted successfully',
-            'data' => $this->attemptService->submitAttempt($attemptId),
+            'data' => $this->attemptService->submitAttempt($attemptId, $studentId),
         ];
     }
 
-    // POST /attempts/{attemptId}/auto-submit  — called when timer expires
+    // POST /attempts/{attemptId}/auto-submit
     public function autoSubmit(int $attemptId): array
     {
+        $studentId = $this->currentStudentId();
+
         return [
             'success' => true,
             'message' => 'Attempt auto-submitted due to time limit',
-            'data' => $this->attemptService->autoSubmitAttempt($attemptId),
+            'data' => $this->attemptService->autoSubmitAttempt($attemptId, $studentId),
         ];
     }
 
-    // GET /attempts/{attemptId}/results  — get results (only if visible to student)
+    // GET /attempts/{attemptId}/results
     public function getResults(int $attemptId): array
     {
-        $studentId = (int) ($_SERVER['auth_student_id'] ?? 0);
+        $studentId = $this->currentStudentId();
 
-        echo $studentId;
-        die;
         return [
             'success' => true,
             'message' => 'Results retrieved',
             'data' => $this->attemptService->getResultsForStudent($attemptId, $studentId),
         ];
     }
+
+    // GET /quizzes/{quizId}/my-result
+public function getMyLatestResult(int $quizId): array
+{
+    $studentId = $this->currentStudentId();
+
+    return [
+        'success' => true,
+        'message' => 'Latest quiz result retrieved',
+        'data' => $this->attemptService->getLatestResultForQuiz(
+            $quizId,
+            $studentId
+        ),
+    ];
 }
- 
+} 

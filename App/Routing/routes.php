@@ -88,7 +88,7 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     // --- Coupons (Student) ---
     $router->post('/coupons-student/redeem', [CouponController::class, 'redeem'], ['auth']);
     $router->get('/my-lectures', [CouponController::class, 'myLectures'], ['auth']);
-
+    $router->get( '/my-lectures/{lecture_id}/check', [CouponController::class, 'checkLectureAccess'], ['auth'] );
     $router->group(['prefix' => '/admin/notifications', 'middleware' => ['auth', 'admin']], function (Router $router) {
         $router->get('/', [NotificationController::class, 'index']);
         $router->get('/{id}', [NotificationController::class, 'show']);
@@ -123,6 +123,12 @@ $router->group(['prefix' => '/api'], function (Router $router) {
 
 
     // --- Student attempt flow (auth required, but students can start/submit their own attempts) ---
+    // --- Student: latest quiz result ---
+$router->get(
+    '/quizzes/{quizId}/my-result',
+    [AttemptController::class, 'getMyLatestResult'],
+    ['auth']
+);
     $router->post('/quizzes/{quizId}/attempts', [AttemptController::class, 'start'], ['auth',]); // done 
     $router->get('/attempts/{attemptId}', [AttemptController::class, 'show'], ['auth']);
     $router->put('/attempts/{attemptId}/answers/{questionId}', [AttemptController::class, 'saveAnswer'], ['auth']); // done  
@@ -131,10 +137,10 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     $router->get('/attempts/{attemptId}/results', [AttemptController::class, 'getResults'], ['auth']);
 
     // --- Teacher: Results Dashboard & essay review (teacher/admin only) ---
-    $router->get('/quizzes/{quizId}/results/insights', [ResultsController::class, 'insights'], ['auth', 'role:admin,teacher']);
-    $router->get('/quizzes/{quizId}/results', [ResultsController::class, 'index'], ['auth', 'role:admin,teacher']);
-    $router->get('/quizzes/{quizId}/results/export', [ResultsController::class, 'export'], ['auth', 'role:admin,teacher']);
-    $router->get('/attempts/{attemptId}/submission-detail', [ResultsController::class, 'submissionDetail'], ['auth', 'role:admin,teacher']);
+    $router->get('/quizzes/{quizId}/results/insights', [ResultsController::class, 'insights'],  ['auth', 'admin']);  // done 
+    $router->get('/quizzes/{quizId}/results', [ResultsController::class, 'index'], ['auth', 'admin']);// done 
+    $router->get('/quizzes/{quizId}/results/export', [ResultsController::class, 'export'], ['auth', 'admin']);
+    $router->get('/attempts/{attemptId}/submission-detail', [ResultsController::class, 'submissionDetail'], ['auth', 'admin']);
 
     // --- Teacher: Essay review workflow ---
     $router->get('/quizzes/{quizId}/essays/pending', [ResultsController::class, 'pendingEssays'], ['auth', 'role:admin,teacher']);

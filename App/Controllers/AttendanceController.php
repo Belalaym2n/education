@@ -165,7 +165,7 @@ public function statistics(array $queryParams = []): array
             'Attendance Update',
             $clean['message'],
             $createdBy
-        );
+        ); 
 
         if (!empty($notification['id'])) {
             $this->attendanceRepo->attachNotification($attendanceId, (int) $notification['id']);

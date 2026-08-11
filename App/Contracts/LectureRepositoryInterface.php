@@ -11,6 +11,7 @@ interface LectureRepositoryInterface
     public function find(int $id): ?array;
 
 
+ 
     public function getNextOrderNumber(int $stageId): int;
     /**
      * Find a single lecture by id, including soft-deleted rows.
@@ -20,7 +21,7 @@ interface LectureRepositoryInterface
 
     /**
      * Find a lecture by slug, ignoring soft-deleted rows.
-     */
+     */ 
     public function findBySlug(string $slug): ?array;
 
     /**
@@ -58,5 +59,7 @@ interface LectureRepositoryInterface
      */
     public function stageExists(int $stageId): bool;
 
+    
+    
     public function findByStageId(int $stageId): array;
-} 
+}  

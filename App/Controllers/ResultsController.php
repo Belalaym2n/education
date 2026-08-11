@@ -7,7 +7,7 @@ use App\Services\ResultsService;
 use App\Services\EssayReviewService;
 
 class ResultsController
-{
+{ 
     private ResultsService $resultsService;
     private EssayReviewService $essayService;
 
