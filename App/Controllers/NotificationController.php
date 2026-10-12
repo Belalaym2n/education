@@ -41,7 +41,8 @@ final class NotificationController
         $clean = $this->validateAndSanitize($requestData, isUpdate: false);
 
         $userId = (int) ($_SERVER['auth_user_id'] ?? 0);
-        $notification = $this->notificationService->createNotification($clean, $userId);
+        $notification = $this->
+        notificationService->createNotification($clean, $userId);
 
         return ['success' => true, 'data' => $notification];
     }

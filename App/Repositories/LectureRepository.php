@@ -205,6 +205,27 @@ class LectureRepository implements LectureRepositoryInterface
         ) !== null;
     } 
 
+    /**
+     * Student-facing list: published lectures only, with the same columns
+     * as allForStudent() (no internal fields such as created_by).
+     */
+    public function findPublishedByStageId(int $stageId): array
+    {
+        return $this->db->query(
+            "SELECT
+                l.id, l.stage_id, l.title, l.slug, l.description, l.youtube_url,
+                l.thumbnail_url, l.duration_seconds, l.order_number, l.price,
+                l.is_free, l.published_at, s.name AS stage_name
+            FROM lectures l
+            INNER JOIN stages s ON s.id = l.stage_id
+            WHERE l.stage_id = ?
+              AND l.deleted_at IS NULL
+              AND l.is_published = 1
+            ORDER BY l.order_number ASC",
+            [$stageId]
+        );
+    }
+
     public function findByStageId(int $stageId): array
     {
         return $this->db->query(

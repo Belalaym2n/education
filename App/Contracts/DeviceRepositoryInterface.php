@@ -15,6 +15,11 @@ interface DeviceRepositoryInterface
 
     public function deactivateByToken(string $token): int;
 
+    public function deactivateByTokenForUser(string $token, int $userId): int;
+
+    /** Deactivates the user's other active tokens on the same installation. */
+    public function deactivateOtherTokensForDevice(int $userId, string $deviceIdentifier, int $keepDeviceId): int;
+
     public function touchLastUsed(int $deviceId): void;
 
     /** @return array<int, array<string, mixed>> */

@@ -75,7 +75,7 @@ class StudentService
             $userId = $this->userRepo->create([
                 'full_name' => $data['full_name'],
                 'email' => $data['email'],
-                'phone' => $data['phone'],
+                'phone' => $data['phone'] ?? null, // optional
                 'password_hash' => $passwordHash,
                 'role_id' => $data['role_id'],
                 'is_active' => 1,
@@ -87,9 +87,10 @@ class StudentService
             $studentId = $this->studentRepo->create([
                 'user_id' => $userId,
                 'stage_id' => $data['stage_id'],
-                'parent_phone' => $data['parent_phone'],
+                'parent_phone' => $data['parent_phone'] ?? null, // optional
                 'qr_code' => $qrCode,
-            ]);
+                'device_identifier' => $data['device_identifier'] ?? null, // Flow A binds here; Flow B (dashboard) stays NULL
+            ]); 
 
             // 3. Auto-create the Father/Guardian user account. The frontend
             //    never supplies a role or email for this account — both are
@@ -97,9 +98,9 @@ class StudentService
             $fatherEmail = $this->generateFatherEmail($userId);
 
             $fatherUserId = $this->userRepo->create([
-                'full_name' => $data['full_name'].'- Father',
+                'full_name' => $data['full_name'] . '- Father',
                 'email' => $fatherEmail,
-                'phone' => $data['parent_phone'],
+                'phone' => $data['parent_phone'] ?? null, // optional
                 'password_hash' => $passwordHash,
                 'role_id' => self::FATHER_ROLE_ID,
                 'is_active' => 1,
@@ -110,7 +111,7 @@ class StudentService
             // 4. Link them via father_student (many-to-many, supports
             //    additional guardians later without any schema change).
             $this->fatherStudentRepo->link($fatherId, $studentId, 'father', true);
- 
+
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();

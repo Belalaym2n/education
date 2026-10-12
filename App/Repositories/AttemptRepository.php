@@ -30,15 +30,34 @@ class AttemptRepository implements AttemptRepositoryInterface
             [$id]
         );
     }
-    public function findLatestByQuizAndStudent(int $quizId, int $studentId): ?array
-    {
-        return $this->db->selectOne(
-            "SELECT * FROM quiz_attempts
-             WHERE quiz_id = ? AND student_id = ? AND deleted_at IS NULL
-             ORDER BY attempt_number DESC LIMIT 1",
-            [$quizId, $studentId]
-        );
-    }
+public function findLatestByQuizAndStudent(int $quizId, int $studentId): ?array
+{
+    return $this->db->selectOne(
+        "SELECT
+            qa.*,
+            q.headline AS quiz_name,
+            u.full_name AS student_name
+         FROM quiz_attempts qa
+
+         INNER JOIN quizzes q
+            ON q.id = qa.quiz_id
+
+         INNER JOIN students s
+            ON s.id = qa.student_id
+
+         INNER JOIN users u
+            ON u.id = s.user_id
+
+         WHERE qa.quiz_id = ?
+           AND qa.student_id = ?
+           AND qa.status IN ('submitted', 'auto_submitted')
+           AND qa.deleted_at IS NULL
+
+         ORDER BY qa.attempt_number DESC
+         LIMIT 1",
+        [$quizId, $studentId]
+    );
+}
  
     public function allForQuizAndStudent(int $quizId, int $studentId): array
     {

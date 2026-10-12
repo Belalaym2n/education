@@ -17,9 +17,11 @@ class Config
         self::$items = [
             'app' => [
                 'env'   =>
-                 EnvLoader::get('APP_ENV', 'production'),
+                 EnvLoader::
+                 get('APP_ENV', 'production'),
                 'debug' => EnvLoader::get('APP_DEBUG', false),
-                'url'   => EnvLoader::get('APP_URL', ''),
+                'url'   => EnvLoader::get(
+                    'APP_URL', ''),
             ],
             'database' => [
                 'driver'  => EnvLoader::get('DB_DRIVER', 'mysql'),

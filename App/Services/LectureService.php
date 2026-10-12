@@ -311,17 +311,21 @@ class LectureService
         return $slug;
     }
 
-    public function getLecturesByStage(int $stageId): array
-{
+    /**
+     * Student view of their own stage's lectures. $authUserId is the
+     * authenticated user's id (the parameter was previously misnamed).
+     *
+     * Security: returns PUBLISHED lectures only. It used to call
+     * findByStageId(), which also returned unpublished lectures (including
+     * their youtube_url) to students.
+     */
+    public function getLecturesByStage(int $authUserId): array
+    {
+        $stageId = $this->resolveStudentStageId($authUserId);
+        $this->assertStageExists($stageId);
 
-
-     $user = $this->studentRepo->find($stageId);
-
- 
-    $this->assertStageExists($user['stage_id']); 
- 
-    return $this->lectureRepo->findByStageId($user['stage_id']);
-}
+        return $this->lectureRepo->findPublishedByStageId($stageId);
+    }
 
     public function getLecturesByStageForAdmin(int $stageId): array
 {

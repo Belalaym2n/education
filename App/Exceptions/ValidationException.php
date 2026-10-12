@@ -10,7 +10,8 @@ class ValidationException extends AppException
 
     public function __construct(array $errors, string $message = "Validation failed")
     {
-        parent::__construct($message, 422,    "Validation Error",
+        parent::__construct($message, 422,
+            "Validation Error",
             ['errors' => $errors]);
         $this->errors = $errors;
     }

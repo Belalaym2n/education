@@ -12,6 +12,9 @@ interface NotificationReadRepositoryInterface
     public function markAllAsRead(int $userId): int;
      public function unreadCount(int $userId): int;
 
+    /** Recipient row (is_read, read_at) if the notification is visible to the user, else null. */
+    public function findVisibleForUser(int $notificationId, int $userId): ?array;
+
     /**
      * @return array{items: array<int, array<string, mixed>>, total: int}
      */

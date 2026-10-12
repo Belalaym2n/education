@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Contracts\PointsLedgerRepositoryInterface;
 use App\Contracts\UserRepositoryInterface;
 use App\Core\Logger;
 use App\Exceptions\ValidationException;
 use App\Exceptions\NotFoundException;
+use PDOException;
 
 class UserService
 {
@@ -13,13 +15,16 @@ class UserService
 
     private UserRepositoryInterface $userRepo;
     private Logger $logger;
+    private ?PointsLedgerRepositoryInterface $pointsRepo;
 
     public function __construct(
         UserRepositoryInterface $userRepo,
-        Logger $logger
+        Logger $logger,
+        ?PointsLedgerRepositoryInterface $pointsRepo = null
     ) {
         $this->userRepo = $userRepo;
         $this->logger = $logger;
+        $this->pointsRepo = $pointsRepo;
     }
 
     public function createUser(array $data): array
@@ -84,6 +89,9 @@ throw new NotFoundException("المستخدم غير موجود.");        }
                     'total_quizzes' => (int) $user['total_quizzes'],
                     'total_degrees' => (int) $user['total_degrees'],
                     'total_lectures' => (int) $user['total_lectures'],
+                    // Lifetime points (students.points, kept in sync with the
+                    // points ledger by the game-exam module). null = unavailable.
+                    'points' => $this->resolveStudentPoints((int) $user['student_id']),
                     'created_at' => $user['student_created_at'],
                     'updated_at' => $user['student_updated_at'],
 
@@ -93,9 +101,32 @@ throw new NotFoundException("المستخدم غير موجود.");        }
                     ],
                 ]
 
-                : null, 
+                : null,
 
         ];
+    }
+
+    /**
+     * Reads the student's points through the existing points repository.
+     * Returns null (never throws) when the repository isn't wired or the
+     * points schema isn't present on this deployment, so `auth/me` keeps
+     * working everywhere — the field is purely additive.
+     */
+    private function resolveStudentPoints(int $studentId): ?int
+    {
+        if ($this->pointsRepo === null || $studentId <= 0) {
+            return null;
+        }
+
+        try {
+            return $this->pointsRepo->studentPoints($studentId);
+        } catch (PDOException $e) {
+            $this->logger->warning('Student points unavailable', [
+                'student_id' => $studentId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     public function getUserRaw(int $id): array

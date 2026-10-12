@@ -16,6 +16,17 @@ use App\Exceptions\AppException;
  */
 final class FirebaseService
 {
+    /**
+     * Setup problems that no retry can fix. Sending stops on the first one
+     * instead of retrying every token with backoff.
+     */
+    private const PERMANENT_ERROR_CODES = [
+        'FIREBASE_MISCONFIGURED',
+        'FIREBASE_CREDENTIALS_MISSING',
+        'FIREBASE_CREDENTIALS_INVALID',
+        'FIREBASE_JWT_SIGNING_FAILED',
+    ];
+
     private ?string $cachedAccessToken = null;
     private int $cachedAccessTokenExpiresAt = 0;
 
@@ -42,6 +53,7 @@ final class FirebaseService
             $attempt++;
 
             try {
+                $this->assertConfigured();
                 $accessToken = $this->getAccessToken();
                 $result = $this->doSend($accessToken, $token, $title, $body, $data);
 
@@ -51,6 +63,15 @@ final class FirebaseService
                     'attempt' => $attempt,
                     'error' => $e->getMessage(),
                 ]);
+
+                if ($e instanceof AppException && in_array($e->getErrorCode(), self::PERMANENT_ERROR_CODES, true)) {
+                    return [
+                        'success' => false,
+                        'error_code' => $e->getErrorCode(),
+                        'error_message' => $e->getMessage(),
+                        'invalid_token' => false,
+                    ];
+                }
 
                 if ($attempt >= $maxAttempts) {
                     return [
@@ -77,14 +98,32 @@ final class FirebaseService
         $results = [];
         $chunkSize = (int) $this->config['multicast_chunk_size'];
 
+        $permanentFailure = null;
+
         foreach (array_chunk($tokens, $chunkSize) as $chunk) {
             foreach ($chunk as $token) {
-                $sendResult = $this->sendToToken($token, $title, $body, $data);
+                $sendResult = $permanentFailure ?? $this->sendToToken($token, $title, $body, $data);
+
+                if (in_array($sendResult['error_code'], self::PERMANENT_ERROR_CODES, true)) {
+                    $permanentFailure = $sendResult;
+                }
+
                 $results[] = array_merge(['token' => $token], $sendResult);
             }
         }
 
         return $results;
+    }
+
+    /**
+     * Fails before any network call when the project id is missing, so a
+     * misconfigured server does not burn an OAuth round-trip per token.
+     */
+    private function assertConfigured(): void
+    {
+        if (empty($this->config['project_id'])) {
+            throw new AppException('Firebase project_id is not configured', 500, 'FIREBASE_MISCONFIGURED');
+        }
     }
 
     /**
@@ -108,8 +147,18 @@ final class FirebaseService
                     'body' => $body,
                 ],
                 'data' => array_map('strval', $data),
-                'android' => ['priority' => 'high'],
-                'apns' => ['headers' => ['apns-priority' => '10']],
+                'android' => [
+                    'priority' => 'high',
+                    'notification' => [
+                        // Must match the channel the app creates at startup.
+                        'channel_id' => $this->config['android_channel_id'],
+                        'sound' => 'default',
+                    ],
+                ],
+                'apns' => [
+                    'headers' => ['apns-priority' => '10'],
+                    'payload' => ['aps' => ['sound' => 'default']],
+                ],
             ],
         ];
 
@@ -147,7 +196,12 @@ final class FirebaseService
 
         $errorStatus = $decoded['error']['status'] ?? 'UNKNOWN';
         $errorMessage = $decoded['error']['message'] ?? "HTTP $httpCode";
-        $isInvalidToken = in_array($errorStatus, ['NOT_FOUND', 'UNREGISTERED', 'INVALID_ARGUMENT'], true);
+        // Only errors that prove the token itself is dead. INVALID_ARGUMENT
+        // also covers payload bugs, so it counts only when it names the
+        // token; SENDER_ID_MISMATCH means wrong server credentials, not a
+        // bad token, and must never deactivate devices.
+        $isInvalidToken = in_array($errorStatus, ['NOT_FOUND', 'UNREGISTERED'], true)
+            || ($errorStatus === 'INVALID_ARGUMENT' && stripos($errorMessage, 'registration token') !== false);
 
         if ($httpCode === 429 || $httpCode >= 500) {
             // Transient: let caller's retry loop handle it.

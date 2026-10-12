@@ -7,6 +7,9 @@ interface QuizRepositoryInterface
     public function find(int $id): ?array;
     public function getStageQuizzes(int $stageId,array $filters, int $limit, int $offset, string $sort, string $order): ?array;
 
+    /** Total for getStageQuizzes() under the same student filters. */
+    public function countStageQuizzes(int $stageId, array $filters): int;
+
     public function findBySlug(string $slug): ?array;
   
     /**

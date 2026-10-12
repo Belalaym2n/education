@@ -4,4 +4,6 @@ vendor/
 App/Core/logs/
 App/Core/logs/
 rate_limits/
-.DS_Store 
+.DS_Store # Firebase / Google service-account credentials
+Storage/Firebase/*.json
+*service-account*.json

@@ -26,13 +26,20 @@ class QuizRepository implements QuizRepositoryInterface
         );
     }
 
+    /**
+     * Student quiz list for one stage: published + visible quizzes only.
+     *
+     * Applies the student filters (search, availability) and real
+     * LIMIT/OFFSET pagination. Previously the filters and pagination were
+     * ignored and every "page" returned the whole list, so clients appended
+     * duplicates. countStageQuizzes() uses exactly the same conditions.
+     */
     public function getStageQuizzes(int $stageId,array $filters, int $limit, int $offset, string $sort, string $order): ?array
     {
-   [$where, $params] = $this->buildWhere($filters);
-        $sort = $this->sanitizeSortColumn($sort);
-        $order = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
+        [$where, $params] = $this->buildStudentStageWhere($stageId, $filters);
         $limit = max(1, min(200, (int) $limit));
         $offset = max(0, (int) $offset);
+
         $sql = "
         SELECT
             q.id,
@@ -71,22 +78,80 @@ class QuizRepository implements QuizRepositoryInterface
         INNER JOIN stages st
             ON st.id = q.stage_id
 
-        WHERE q.stage_id = ?
-          AND q.deleted_at IS NULL
-          AND q.status = 'published'
-          AND q.is_visible = 1
+        WHERE {$where}
 
         ORDER BY
             q.start_date DESC,
             q.start_time DESC,
-            q.created_at DESC
+            q.created_at DESC,
+            q.id DESC
+        LIMIT {$limit} OFFSET {$offset}
     ";
 
-        return $this->db->query($sql, [$stageId]);
+        return $this->db->query($sql, $params);
     }
 
+    public function countStageQuizzes(int $stageId, array $filters): int
+    {
+        [$where, $params] = $this->buildStudentStageWhere($stageId, $filters);
+        $row = $this->db->selectOne(
+            "SELECT COUNT(*) AS total FROM quizzes q WHERE {$where}",
+            $params
+        );
 
- 
+        return (int) ($row['total'] ?? 0);
+    }
+
+    /**
+     * WHERE clause for the student list. Only student-safe filters are
+     * honoured; all values are bound. Search uses LIKE (no dependency on a
+     * FULLTEXT index). Availability mirrors QuizAvailabilityDTO for
+     * published + visible quizzes, using PHP's clock (passed as a
+     * parameter) so the filter and the displayed state always agree.
+     *
+     * @return array{0:string,1:array}
+     */
+    private function buildStudentStageWhere(int $stageId, array $filters): array
+    {
+        $clauses = [
+            'q.stage_id = ?',
+            'q.deleted_at IS NULL',
+            "q.status = 'published'",
+            'q.is_visible = 1',
+        ];
+        $params = [$stageId];
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            // Escape LIKE wildcards (and the escape char itself).
+            $like = '%' . addcslashes($search, "%_\\") . '%';
+            $clauses[] = '(q.headline LIKE ? OR q.description LIKE ?)';
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $now = (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+        $start = "TIMESTAMP(q.start_date, COALESCE(q.start_time, '00:00:00'))";
+        $end = "TIMESTAMP(q.end_date, COALESCE(q.end_time, '23:59:59'))";
+
+        switch ($filters['availability'] ?? null) {
+            case 'upcoming':
+                $clauses[] = "{$start} > ?";
+                $params[] = $now;
+                break;
+            case 'finished':
+                $clauses[] = "{$end} < ?";
+                $params[] = $now;
+                break;
+            case 'live':
+                $clauses[] = "{$start} <= ? AND {$end} >= ?";
+                $params[] = $now;
+                $params[] = $now;
+                break;
+        }
+
+        return [implode(' AND ', $clauses), $params];
+    }
 
     public function findBySlug(string $slug): ?array
     {

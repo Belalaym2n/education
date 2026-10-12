@@ -82,8 +82,128 @@ use App\Services\EssayReviewService;
 use App\Services\ResultsService;
 use App\Controllers\AttemptController;
 use App\Controllers\ResultsController;
-
+use App\Services\DeviceBindingService;
+use App\Contracts\GameExamAttemptRepositoryInterface;
+use App\Contracts\GameExamRepositoryInterface;
+use App\Contracts\PointsLedgerRepositoryInterface;
+use App\Controllers\GameExamController;
+use App\Controllers\StudentGameExamController;
+ 
+use App\Middleware\StudentMiddleware;
+use App\Repositories\GameExamAttemptRepository;
+use App\Repositories\GameExamRepository;
+use App\Repositories\PointsLedgerRepository;
+use App\Services\GameExamPlayService;
+use App\Services\GameExamPresenter;
+use App\Services\GameExamResultsService;
+use App\Services\GameExamService;
+use App\Services\GameScoringPolicy;
+use App\Support\Clock;
+use App\Validators\GameExamValidator;
 $container = new Container();
+
+// --- game exam // --- Game Exams ---
+
+$container->singleton(Clock::class, fn() => new Clock());
+
+$container->singleton(
+    GameScoringPolicy::class,
+    fn() => new GameScoringPolicy()
+);
+
+$container->singleton(
+    GameExamPresenter::class,
+    fn() => new GameExamPresenter()
+);
+
+$container->bind(
+    GameExamValidator::class,
+    fn() => new GameExamValidator()
+);
+
+$container->bind(
+    GameExamRepositoryInterface::class,
+    fn($c) => new GameExamRepository(
+        $c->make(Database::class)
+    )
+);
+
+$container->bind(
+    GameExamAttemptRepositoryInterface::class,
+    fn($c) => new GameExamAttemptRepository(
+        $c->make(Database::class)
+    )
+);
+
+$container->bind(
+    PointsLedgerRepositoryInterface::class,
+    fn($c) => new PointsLedgerRepository(
+        $c->make(Database::class)
+    )
+);
+
+$container->bind(
+    GameExamService::class,
+    fn($c) => new GameExamService(
+        $c->make(GameExamRepositoryInterface::class),
+        $c->make(GameExamValidator::class),
+        $c->make(GameExamPresenter::class),
+        $c->make(Database::class),
+        $c->make(Clock::class),
+        $c->make(Logger::class)
+    )
+);
+
+$container->bind(
+    GameExamPlayService::class,
+    fn($c) => new GameExamPlayService(
+        $c->make(GameExamRepositoryInterface::class),
+        $c->make(GameExamAttemptRepositoryInterface::class),
+        $c->make(PointsLedgerRepositoryInterface::class),
+        $c->make(GameScoringPolicy::class),
+        $c->make(GameExamPresenter::class),
+        $c->make(Database::class),
+        $c->make(Clock::class),
+        $c->make(Logger::class)
+    )
+);
+
+$container->bind(
+    GameExamResultsService::class,
+    fn($c) => new GameExamResultsService(
+        $c->make(GameExamRepositoryInterface::class),
+        $c->make(GameExamAttemptRepositoryInterface::class),
+        $c->make(GameExamPresenter::class),
+        $c->make(Clock::class)
+    )
+);
+
+$container->bind(
+    GameExamController::class,
+    fn($c) => new GameExamController(
+        $c->make(GameExamService::class),
+        $c->make(GameExamResultsService::class)
+    )
+);
+
+$container->bind(
+    StudentGameExamController::class,
+    fn($c) => new StudentGameExamController(
+        $c->make(GameExamPlayService::class)
+    )
+);
+
+$container->bind(
+    StudentMiddleware::class,
+    fn() => new StudentMiddleware()
+);
+
+$container->bind(
+    AdminMiddleware::class,
+    fn() => new AdminMiddleware()
+);
+
+
 
 // --- Core ---
 $container->singleton(Database::class, function () {
@@ -104,8 +224,57 @@ $container->singleton(Database::class, function () {
 
 $container->singleton(Logger::class, function () {
     return new Logger();
-});
+}); 
 
+
+     $container->singleton(Clock::class, fn() => new Clock());
+    $container->singleton(GameScoringPolicy::class, fn() => new GameScoringPolicy());
+    $container->singleton(GameExamPresenter::class, fn() => new GameExamPresenter());
+    $container->bind(GameExamValidator::class, fn() => new GameExamValidator());
+
+    $container->bind(GameExamRepositoryInterface::class, fn($c) => new GameExamRepository($c->make(Database::class)));
+    $container->bind(GameExamAttemptRepositoryInterface::class, fn($c) => new GameExamAttemptRepository($c->make(Database::class)));
+    $container->bind(PointsLedgerRepositoryInterface::class, fn($c) => new PointsLedgerRepository($c->make(Database::class)));
+
+    $container->bind(GameExamService::class, fn($c) => new GameExamService(
+        $c->make(GameExamRepositoryInterface::class),
+        $c->make(GameExamValidator::class),
+        $c->make(GameExamPresenter::class),
+        $c->make(Database::class),
+        $c->make(Clock::class),
+        $c->make(Logger::class)
+    ));
+
+    $container->bind(GameExamPlayService::class, fn($c) => new GameExamPlayService(
+        $c->make(GameExamRepositoryInterface::class),
+        $c->make(GameExamAttemptRepositoryInterface::class),
+        $c->make(PointsLedgerRepositoryInterface::class),
+        $c->make(GameScoringPolicy::class),
+        $c->make(GameExamPresenter::class),
+        $c->make(Database::class),
+        $c->make(Clock::class),
+        $c->make(Logger::class)
+    ));
+
+    $container->bind(GameExamResultsService::class, fn($c) => new GameExamResultsService(
+        $c->make(GameExamRepositoryInterface::class),
+        $c->make(GameExamAttemptRepositoryInterface::class),
+        $c->make(GameExamPresenter::class),
+        $c->make(Clock::class)
+    ));
+
+    $container->bind(GameExamController::class, fn($c) => new GameExamController(
+        $c->make(GameExamService::class),
+        $c->make(GameExamResultsService::class)
+    ));
+    $container->bind(StudentGameExamController::class, fn($c) => new StudentGameExamController(
+        $c->make(GameExamPlayService::class)
+    ));
+
+    // Middleware resolved by Router::resolveMiddleware()
+    $container->bind(StudentMiddleware::class, fn() => new StudentMiddleware());
+    $container->bind(AdminMiddleware::class, fn() => new AdminMiddleware());
+ 
 // --- Repositories ---
 $container->bind(StudentRepositoryInterface::class, function ($c) {
     return new StudentRepository($c->make(Database::class));
@@ -140,7 +309,8 @@ $container->bind(LectureOwnershipRepositoryInterface::class, function ($c) {
 $container->bind(UserService::class, function ($c) {
     return new UserService(
         $c->make(UserRepositoryInterface::class),
-        $c->make(Logger::class)
+        $c->make(Logger::class),
+        $c->make(PointsLedgerRepositoryInterface::class)
     );
 });
 $container->singleton(CouponCodeGenerator::class, function ($c) {
@@ -186,7 +356,12 @@ $container->bind(StudentService::class, function ($c) {
         $c->make(Logger::class)
     );
 });
-
+$container->bind(DeviceBindingService::class, function ($c) {
+    return new DeviceBindingService(
+        $c->make(StudentRepositoryInterface::class),
+        $c->make(Logger::class)
+    );
+});
 $container->singleton(FirebaseService::class, fn($c) => new FirebaseService($c->make(Logger::class)));
 $container->bind(NotificationService::class, fn($c) => new NotificationService(
     $c->make(NotificationRepositoryInterface::class),
@@ -224,14 +399,21 @@ $container->bind(CouponController::class, function ($c) {
     );
 });
 $container->bind(StudentController::class, function ($c) {
-    return new StudentController($c->make(StudentService::class));
+    return new StudentController(
+        
+    $c->make(StudentService::class),
+        $c->make(DeviceBindingService ::class),
+
+    );
 });
 
 $container->bind(AuthController::class, function ($c) {
     return new AuthController(
         $c->make(AuthService::class),
         $c->make(UserService::class),
-        $c->make(StudentService::class)
+        $c->make(StudentService::class),
+                $c->make(DeviceBindingService ::class),
+
     );
 });
 
@@ -372,5 +554,36 @@ $container->bind(ResultsController::class, function ($c) {
         $c->make(EssayReviewService::class),
     );
 });
+
+// --- Student profile photo (upload + serve) ---
+$container->singleton(\App\Services\ProfileImageService::class, function ($c) {
+    return new \App\Services\ProfileImageService(
+        $c->make(StudentRepositoryInterface::class),
+        $c->make(Database::class),
+        // Reused only for validation (size, MIME, decode checks).
+        new ImageUploadHelper(__DIR__ . '/storage/uploads/profile_images', '/media/profile-images'),
+        $c->make(Logger::class),
+        __DIR__ . '/storage/uploads/profile_images'
+    );
+});
+$container->bind(\App\Controllers\ProfileImageController::class, function ($c) {
+    return new \App\Controllers\ProfileImageController(
+        $c->make(\App\Services\ProfileImageService::class)
+    );
+});
+
+// --- Teacher dashboard analytics (read-only aggregates) ---
+$container->bind(\App\Contracts\DashboardAnalyticsRepositoryInterface::class, fn($c) => new \App\Repositories\DashboardAnalyticsRepository(
+    $c->make(Database::class)
+));
+$container->bind(\App\Services\DashboardAnalyticsService::class, fn($c) => new \App\Services\DashboardAnalyticsService(
+    $c->make(\App\Contracts\DashboardAnalyticsRepositoryInterface::class),
+    new \App\Services\GradePerformanceEvaluator(),
+    new \App\Services\DashboardInsightBuilder(),
+    $c->make(Logger::class)
+));
+$container->bind(\App\Controllers\DashboardAnalyticsController::class, fn($c) => new \App\Controllers\DashboardAnalyticsController(
+    $c->make(\App\Services\DashboardAnalyticsService::class)
+));
 
 return $container;

@@ -6,14 +6,15 @@ require __DIR__ . "/vendor/autoload.php";
 use App\Core\EnvLoader;
 use App\Core\Config;
 
+use App\Core\ErrorHandler;
+use App\Middleware\AuthMiddleware;
+ use App\Services\DeviceBindingService;
 EnvLoader::load(__DIR__ . '/.env');
 
 Config::init();
 
 $container = require __DIR__ . "/bootstrap.php";
 
-use App\Core\ErrorHandler;
-use App\Middleware\AuthMiddleware;
 
 ErrorHandler::init(Config::get('app.debug'));
 
@@ -22,19 +23,22 @@ header('Content-Type: application/json');
  
 $origin = Config::get('app.env') === 'production'
     ? 'https://yourdomain.com'
-    : '*';
+    : '*'; 
 
 header("Access-Control-Allow-Origin: $origin");
 header("Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
-
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Device-ID");
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-$container->bind(AuthMiddleware::class, fn($c) => new AuthMiddleware());
-
+$container->bind(AuthMiddleware::class, function ($c) {
+    return new AuthMiddleware(
+        $c->make(DeviceBindingService::class)
+    );
+});
 require __DIR__ . '/App/Routing/routes.php';
 
  $method = $_SERVER['REQUEST_METHOD'];

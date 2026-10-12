@@ -62,4 +62,7 @@ interface LectureRepositoryInterface
     
     
     public function findByStageId(int $stageId): array;
+
+    /** Published, non-deleted lectures of a stage (student-facing). */
+    public function findPublishedByStageId(int $stageId): array;
 }  

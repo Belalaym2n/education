@@ -17,7 +17,7 @@ use App\Controllers\AttendanceController; // NEW
  
 use App\Controllers\AttemptController;
 use App\Controllers\ResultsController;
-
+require_once __DIR__ . '/game_exam_routes.php';
 $router = new Router($container);
 
 $router->group(['prefix' => '/api'], function (Router $router) {
@@ -30,6 +30,12 @@ $router->group(['prefix' => '/api'], function (Router $router) {
         [AuthController::class, 'me'],
         ['auth']
     );
+
+    // --- Student profile photo ---
+    // Upload (multipart field "image"); the student is the token's owner.
+    $router->post('/students/me/profile-image', [\App\Controllers\ProfileImageController::class, 'upload'], ['auth']);
+    // Serve a stored photo (random, unlisted names; see ProfileImageService).
+    $router->get('/media/profile-images/{file}', [\App\Controllers\ProfileImageController::class, 'show']);
 
     // --- Registration ---
     $router->post(
@@ -48,13 +54,15 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     $router->get('/students/{id}', [StudentController::class, 'show'], ['auth']);
     $router->put('/students/{id}', [StudentController::class, 'update'], ['auth']);
     $router->delete('/students/{id}', [StudentController::class, 'destroy'], ['auth']);
-
+$router->post('/students/{id}/reset-device', [StudentController::class, 'resetDevice'], ['auth', 'admin']);
   
     // --- Lectures ---
-    $router->get('/lectures', [LectureController::class, 'index'], ['auth']);
+    $router->get('/lectures', [LectureController::class, 'index'], ['auth']); 
 
     $router->get('/lectures/stage', [LectureController::class, 'getByStage'], ['auth']);
-    $router->get('/lectures/stage/{id}', [LectureController::class, 'getByStageForAdmin'], ['auth']);
+    // Admin-only: returns unpublished lectures too (used by the dashboard's
+    // coupon screen). Was reachable by any authenticated student.
+    $router->get('/lectures/stage/{id}', [LectureController::class, 'getByStageForAdmin'], ['auth', 'admin']);
 
     $router->get('/lectures/{id}', [LectureController::class, 'show'], ['auth']);
 
@@ -66,6 +74,7 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     $router->patch('/lectures/{id}/unpublish', [LectureController::class, 'unpublish'], ['auth', 'admin']);
     $router->patch('/lectures/reorder', [LectureController::class, 'reorder'], ['auth', 'admin']);
 
+    registerGameExamRoutes($router);
 
     $router->get('/stages', [StageController::class, 'index']);
     $router->get('/years', [StageController::class, 'getYearsAcademy']);
@@ -89,6 +98,10 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     $router->post('/coupons-student/redeem', [CouponController::class, 'redeem'], ['auth']);
     $router->get('/my-lectures', [CouponController::class, 'myLectures'], ['auth']);
     $router->get( '/my-lectures/{lecture_id}/check', [CouponController::class, 'checkLectureAccess'], ['auth'] );
+    // --- Teacher dashboard analytics (aggregates only, admin role) ---
+    $router->get('/admin/analytics/overview', [\App\Controllers\DashboardAnalyticsController::class, 'overview'], ['auth', 'admin']);
+    $router->get('/admin/analytics/activity', [\App\Controllers\DashboardAnalyticsController::class, 'activity'], ['auth', 'admin']);
+
     $router->group(['prefix' => '/admin/notifications', 'middleware' => ['auth', 'admin']], function (Router $router) {
         $router->get('/', [NotificationController::class, 'index']);
         $router->get('/{id}', [NotificationController::class, 'show']);
@@ -191,7 +204,7 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     });
 
 
-
+ 
     // --- Student Results (End of Year Marks) ---
 
     // Students/parents view results (read-only), teachers/admins manage them.
@@ -202,4 +215,3 @@ $router->group(['prefix' => '/api'], function (Router $router) {
     $router->put('/student-results/{id}', [StudentResultController::class, 'update'], ['auth', 'admin']);
     $router->delete('/student-results/{id}', [StudentResultController::class, 'destroy'], ['auth', 'admin']);
 });
-

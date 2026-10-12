@@ -27,4 +27,9 @@ interface StudentRepositoryInterface
     public function findManyByQrCodes(array $qrCodes): array;
 
     public function incrementTotalLectures(int $studentId): void;
+
+    public function findByUserId(int $userId): ?array;
+    public function updateDeviceIdentifier(int $studentId, string $deviceIdentifier): int;
+    public function clearDeviceIdentifier(int $studentId): int;
 }
+ 

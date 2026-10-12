@@ -64,46 +64,47 @@ class StudentRepository implements StudentRepositoryInterface
         );
     }
 
-  public function all(array $filters, int $limit, int $offset, string $sort, string $order): array
-{
+    public function all(array $filters, int $limit, int $offset, string $sort, string $order): array
+    {
 
 
-    $sortable = [
-        'id',
-        'full_name',
-        'email',
-        'created_at',
-        'average_score',
-    ]; 
+        $sortable = [
+            'id',
+            'full_name',
+            'email',
+            'created_at',
+            'average_score',
+        ];
 
-    $sort = in_array($sort, $sortable, true) ? $sort : 'created_at';
-    $order = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
+        $sort = in_array($sort, $sortable, true) ? $sort : 'created_at';
+        $order = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
 
-$where = [
-    's.deleted_at IS NULL',
-    'u.deleted_at IS NULL',
-];     $params = [];
+        $where = [
+            's.deleted_at IS NULL',
+            'u.deleted_at IS NULL',
+        ];
+        $params = [];
 
-    if (isset($filters['stage_id'])) {
-        $where[] = 's.stage_id = ?';
-        $params[] = (int)$filters['stage_id'];
-    }
+        if (isset($filters['stage_id'])) {
+            $where[] = 's.stage_id = ?';
+            $params[] = (int)$filters['stage_id'];
+        }
 
-    if (isset($filters['is_active'])) {
-        $where[] = 'u.is_active = ?';
-        $params[] = (int)$filters['is_active'];
-    }
+        if (isset($filters['is_active'])) {
+            $where[] = 'u.is_active = ?';
+            $params[] = (int)$filters['is_active'];
+        }
 
-    if (!empty($filters['search'])) {
-        $where[] = '(u.full_name LIKE ? OR u.email LIKE ?)';
-        $params[] = '%' . $filters['search'] . '%';
-        $params[] = '%' . $filters['search'] . '%';
-    }
+        if (!empty($filters['search'])) {
+            $where[] = '(u.full_name LIKE ? OR u.email LIKE ?)';
+            $params[] = '%' . $filters['search'] . '%';
+            $params[] = '%' . $filters['search'] . '%';
+        }
 
-    $whereSql = implode(' AND ', $where);
- 
-    $total = $this->db->selectOne(
-        "
+        $whereSql = implode(' AND ', $where);
+
+        $total = $this->db->selectOne(
+            "
         SELECT COUNT(*) AS total
         FROM students s
         INNER JOIN users u ON u.id = s.user_id
@@ -111,14 +112,14 @@ $where = [
         LEFT JOIN stages st ON st.id = s.stage_id
         WHERE $whereSql
         ",
-        $params
-    );
+            $params
+        );
 
-    $limit = max(1, min($limit, 200));
-    $offset = max(0, $offset);
+        $limit = max(1, min($limit, 200));
+        $offset = max(0, $offset);
 
-    $rows = $this->db->query(
-        "
+        $rows = $this->db->query(
+            "
         SELECT
             s.id,
             s.user_id,
@@ -155,14 +156,14 @@ $where = [
 
         LIMIT $limit OFFSET $offset
         ",
-        $params
-    );
- 
-    return [ 
-        'data' => $rows,
-        'total' => (int)($total['total'] ?? 0),
-    ];
-} 
+            $params
+        );
+
+        return [
+            'data' => $rows,
+            'total' => (int)($total['total'] ?? 0),
+        ];
+    }
 
     public function create(array $data): int
     {
@@ -173,25 +174,26 @@ $where = [
     public function update(int $id, array $data): int
     {
 
-return $this->db->update(
-    'students',
-    $data,
-    'id = ?',
-    [$id]
-);    }
-  
- public function delete(int $id): int
-{
-    return $this->db->update(
-        'students',
-        [
-            'deleted_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ],
-        'id = ?',
-        [$id]
-    );
-} 
+        return $this->db->update(
+            'students',
+            $data,
+            'id = ?',
+            [$id]
+        );
+    }
+
+    public function delete(int $id): int
+    {
+        return $this->db->update(
+            'students',
+            [
+                'deleted_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            'id = ?',
+            [$id]
+        );
+    }
 
     public function findByQrCode(string $qrCode): ?array
     {
@@ -209,17 +211,17 @@ return $this->db->update(
             [$qrCode]
         );
     }
- 
+
     public function findManyByQrCodes(array $qrCodes): array
     {
         $qrCodes = array_values(array_unique(array_filter($qrCodes, fn($c) => $c !== '')));
- 
+
         if (empty($qrCodes)) {
             return [];
         }
- 
+
         $placeholders = implode(',', array_fill(0, count($qrCodes), '?'));
- 
+
         return $this->db->query(
             "
             SELECT s.id, s.user_id, s.stage_id, s.qr_code
@@ -227,20 +229,47 @@ return $this->db->update(
             WHERE s.qr_code IN ($placeholders) AND s.deleted_at IS NULL
             ",
             $qrCodes
-        ); 
+        );
     }
- 
+
     public function incrementTotalLectures(int $studentId): void
-{
-    $sql = "
+    {
+        $sql = "
         UPDATE students
         SET total_lectures = COALESCE(total_lectures, 0) + 1
         WHERE id = :student_id
     ";
 
-    $this->db->execute($sql, [
-        'student_id' => $studentId,
-    ]);
-} 
+        $this->db->execute($sql, [
+            'student_id' => $studentId,
+        ]);
+    }
+
+    public function findByUserId(int $userId): ?array
+    {
+        return $this->db->selectOne(
+            "SELECT id, user_id, device_identifier FROM students WHERE user_id = ? AND deleted_at IS NULL",
+            [$userId]
+        );
+    }
+
+    public function updateDeviceIdentifier(int $studentId, string $deviceIdentifier): int
+    {
+        return $this->db->update(
+            'students',
+            ['device_identifier' => $deviceIdentifier],
+            'id = ?',
+            [$studentId]
+        );
+    }
+
+    public function clearDeviceIdentifier(int $studentId): int 
+    {
+        return $this->db->update(
+            'students',
+            ['device_identifier' => null],
+            'id = ?',
+            [$studentId]
+        );
+    }
 }
- 

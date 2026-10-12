@@ -43,32 +43,31 @@ final class DeviceRepository implements DeviceRepositoryInterface
         return $this->db->query($sql, $userIds);
     }
 
+    /**
+     * Single atomic statement keyed on `uq_device_token`. The previous
+     * find-then-insert raced when the app registered the same new token twice
+     * at once (app start + login), and the loser failed with a 1062 duplicate
+     * error. LAST_INSERT_ID(id) makes the update path return the existing id.
+     */
     public function upsert(int $userId, string $token, string $platform, ?string $deviceIdentifier, ?string $appVersion): int
     {
-        $existing = $this->findByToken($token);
+        $this->db->execute(
+            "INSERT INTO " . self::TABLE . "
+                (user_id, fcm_token, platform, device_identifier, app_version, is_active, last_used_at)
+             VALUES (?, ?, ?, ?, ?, 1, NOW())
+             ON DUPLICATE KEY UPDATE
+                id = LAST_INSERT_ID(id),
+                user_id = VALUES(user_id),
+                platform = VALUES(platform),
+                device_identifier = VALUES(device_identifier),
+                app_version = VALUES(app_version),
+                is_active = 1,
+                deleted_at = NULL,
+                last_used_at = NOW()",
+            [$userId, $token, $platform, $deviceIdentifier, $appVersion]
+        );
 
-        if ($existing !== null) {
-            $this->db->update(self::TABLE, [
-                'user_id' => $userId,
-                'platform' => $platform,
-                'device_identifier' => $deviceIdentifier,
-                'app_version' => $appVersion,
-                'is_active' => 1,
-                'last_used_at' => date('Y-m-d H:i:s'),
-            ], 'id = ?', [(int) $existing['id']]);
-
-            return (int) $existing['id'];
-        }
-
-        return (int) $this->db->insert(self::TABLE, [
-            'user_id' => $userId,
-            'fcm_token' => $token,
-            'platform' => $platform,
-            'device_identifier' => $deviceIdentifier,
-            'app_version' => $appVersion,
-            'is_active' => 1,
-            'last_used_at' => date('Y-m-d H:i:s'),
-        ]);
+        return (int) $this->db->selectOne("SELECT LAST_INSERT_ID() AS id")['id'];
     }
 
     public function deactivate(int $deviceId): int
@@ -81,6 +80,23 @@ final class DeviceRepository implements DeviceRepositoryInterface
         return $this->db->execute(
             "UPDATE " . self::TABLE . " SET is_active = 0 WHERE fcm_token = ?",
             [$token]
+        );
+    }
+
+    public function deactivateByTokenForUser(string $token, int $userId): int
+    {
+        return $this->db->execute(
+            "UPDATE " . self::TABLE . " SET is_active = 0 WHERE fcm_token = ? AND user_id = ?",
+            [$token, $userId]
+        );
+    }
+
+    public function deactivateOtherTokensForDevice(int $userId, string $deviceIdentifier, int $keepDeviceId): int
+    {
+        return $this->db->execute(
+            "UPDATE " . self::TABLE . " SET is_active = 0
+             WHERE user_id = ? AND device_identifier = ? AND id <> ? AND is_active = 1",
+            [$userId, $deviceIdentifier, $keepDeviceId]
         );
     }
 

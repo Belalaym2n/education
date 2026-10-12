@@ -73,9 +73,10 @@ class AttemptAnswerRepository implements AttemptAnswerRepositoryInterface
                 qaa.id, qaa.attempt_id, qaa.question_id, qaa.answer_text,
                 qaa.answer_image_url, qaa.marks_awarded, qaa.reviewed_at,
                 qq.question_text, qq.marks, qq.type, qq.order_number,
+                
                 qa.student_id, s.full_name AS student_name, s.student_id_display,
                 q.headline AS quiz_name
-                            q.duration_seconds,
+                            
 
              FROM quiz_attempt_answers qaa
              INNER JOIN quiz_questions qq ON qq.id = qaa.question_id

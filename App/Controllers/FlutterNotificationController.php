@@ -52,7 +52,11 @@ final class FlutterNotificationController
 
     public function show(int $notificationId): array
     {
-        return ['success' => true, 'data' => $this->notificationService->getNotification($notificationId)];
+        // Scoped to the authenticated user: a student can only open
+        // notifications that were sent to them.
+        $userId = (int) $_SERVER['auth_user_id'];
+
+        return ['success' => true, 'data' => $this->notificationService->getNotificationForUser($notificationId, $userId)];
     }
 
     public function destroyLocal(int $notificationId): array

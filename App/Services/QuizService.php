@@ -55,10 +55,16 @@ class QuizService
 
       $stageId = $this->resolveStudentStageId($studentId);
 
-              $filters['stage_id'] = $stageId;
+        // Students may only search and filter by availability; any other
+        // query parameter (status, created_by, …) is ignored.
+        $availability = $filters['availability'] ?? null;
+        $studentFilters = [
+            'search' => isset($filters['search']) ? mb_substr(trim((string) $filters['search']), 0, 100) : null,
+            'availability' => in_array($availability, ['upcoming', 'live', 'finished'], true) ? $availability : null,
+        ];
 
-        $rows = $this->quizRepo->getStageQuizzes($stageId, $filters, $limit, $offset, $sort, $order);
-        $total = $this->quizRepo->count($filters);
+        $rows = $this->quizRepo->getStageQuizzes($stageId, $studentFilters, $limit, $offset, $sort, $order);
+        $total = $this->quizRepo->countStageQuizzes($stageId, $studentFilters);
 
         return [
             'data' => array_map(fn($row) => $this->withDerivedFields($row), $rows),

@@ -278,9 +278,33 @@ if ($startedTransaction) {
 
     // ---------------------- Flutter-facing read APIs ----------------------
 
+    /**
+     * Student-facing details: only notifications actually sent to this user
+     * (and still visible to them). Anything else is reported as not found so
+     * ids of other users' notifications can't be probed. Adds the user's own
+     * read state (is_read, read_at) to the payload.
+     */
+    public function getNotificationForUser(int $id, int $userId): array
+    {
+        $recipient = $this->readRepo->findVisibleForUser($id, $userId);
+        if ($recipient === null) {
+            throw new NotFoundException('Notification');
+        }
+
+        $notification = $this->getNotification($id);
+        $notification['id'] = (int) $notification['id'];
+        $notification['is_read'] = (int) ($recipient['is_read'] ?? 0) === 1;
+        $notification['read_at'] = $recipient['read_at'] ?? null;
+
+        return $notification;
+    }
+
     public function listForUser(int $userId, bool $unreadOnly, int $limit, int $offset): array
     {
-        $limit = min($limit, 100);
+        // Bounded values: negative offsets / zero limits would produce
+        // invalid SQL in the repository.
+        $limit = max(1, min($limit, 100));
+        $offset = max(0, $offset);
         $result = $this->readRepo->listForUser($userId, $unreadOnly, $limit, $offset);
 
         return (new PaginationResult($result['items'], $result['total'], $limit, $offset))->toArray();
