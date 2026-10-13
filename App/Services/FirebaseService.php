@@ -37,7 +37,7 @@ final class FirebaseService
     public function __construct(Logger $logger)
     {
         $this->logger = $logger;
-        $this->config = require dirname(__DIR__, 2) . '/App/config/firebase.php';
+        $this->config = require dirname(__DIR__, 2) . '/App/Config/firebase.php';
     }  
     /** 
      * Send a single push message to one device token.

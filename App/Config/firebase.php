@@ -1,6 +1,6 @@
 <?php
 
-namespace App\config;
+namespace App\Config;
 
 return [
     'project_id' => getenv('FIREBASE_PROJECT_ID') ?: '',
